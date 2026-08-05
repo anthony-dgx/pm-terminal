@@ -36,11 +36,13 @@ export function App(): React.ReactElement {
     defaultCwd: string
     defaultModel: string | null
     defaultProfileId: string | null
+    inspectorOpen: boolean
     claudePath: string | null
   } | null>(null)
   const [model, setModel] = useState<string | null>(null)
   const [profileId, setProfileId] = useState<string | null>(null)
   const [profilesKey, setProfilesKey] = useState(0)
+  const [inspectorOpen, setInspectorOpen] = useState(true)
   const [info, setInfo] = useState<SessionInfo | null>(null)
   const [turns, setTurns] = useState<Turn[]>([])
   const [streamBuffers, setStreamBuffers] = useState<Record<string, string>>({})
@@ -72,6 +74,7 @@ export function App(): React.ReactElement {
       setCwd(e.defaultCwd)
       setModel(e.defaultModel)
       setProfileId(e.defaultProfileId)
+      setInspectorOpen(e.inspectorOpen)
     })
   }, [])
 
@@ -136,6 +139,27 @@ export function App(): React.ReactElement {
     const el = scrollRef.current
     if (el && pinnedRef.current) el.scrollTop = el.scrollHeight
   }, [turns, streamBuffers])
+
+  const toggleInspector = useCallback(() => {
+    setInspectorOpen((open) => {
+      const next = !open
+      void desk.setInspectorOpen(next)
+      return next
+    })
+  }, [])
+
+  // Cmd/Ctrl+I mirrors the chevron, so the panel can be dismissed without
+  // reaching for it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'i') {
+        e.preventDefault()
+        toggleInspector()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [toggleInspector])
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current
@@ -392,11 +416,19 @@ export function App(): React.ReactElement {
           />
         </main>
 
-        <Inspector
-          refreshKey={inspectorKey}
-          profilesKey={profilesKey}
-          onProfilesChanged={() => setProfilesKey((k) => k + 1)}
-        />
+        {inspectorOpen ? (
+          <Inspector
+            refreshKey={inspectorKey}
+            profilesKey={profilesKey}
+            onProfilesChanged={() => setProfilesKey((k) => k + 1)}
+            onClose={toggleInspector}
+          />
+        ) : (
+          <button className="inspector-rail" onClick={toggleInspector} title="Show panel (Cmd+I)">
+            <span className="inspector-rail-caret">‹</span>
+            <span className="inspector-rail-label">Inspector</span>
+          </button>
+        )}
       </div>
     </div>
   )

@@ -229,6 +229,8 @@ function registerIpc(): void {
 
   // ---- music player ------------------------------------------------------
 
+  ipcMain.handle('ui:setInspectorOpen', (_e, open: boolean) => writePrefs({ inspectorOpen: open }))
+
   ipcMain.handle('player:read', () => readPlayer())
   ipcMain.handle('player:write', (_e, next: { url?: string; volume?: number }) => writePlayer(next))
 
@@ -256,6 +258,7 @@ function registerIpc(): void {
     defaultCwd: await defaultCwd(),
     defaultModel: (await readPrefs()).lastModel ?? null,
     defaultProfileId: (await readPrefs()).lastProfileId ?? null,
+    inspectorOpen: (await readPrefs()).inspectorOpen ?? true,
     claudePath: resolveClaudeExecutable() ?? null,
   }))
 }

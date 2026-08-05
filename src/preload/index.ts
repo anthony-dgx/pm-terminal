@@ -51,6 +51,7 @@ export interface DeskApi {
   groupsRead(): Promise<SessionGroup[]>
   groupsWrite(groups: SessionGroup[]): Promise<void>
 
+  setInspectorOpen(open: boolean): Promise<void>
   playerRead(): Promise<{ url?: string; volume?: number }>
   playerWrite(next: { url?: string; volume?: number }): Promise<void>
 
@@ -63,6 +64,7 @@ export interface DeskApi {
     defaultCwd: string
     defaultModel: string | null
     defaultProfileId: string | null
+    inspectorOpen: boolean
     claudePath: string | null
   }>
 
@@ -98,6 +100,7 @@ const api: DeskApi = {
   groupsRead: () => ipcRenderer.invoke('groups:read'),
   groupsWrite: (groups) => ipcRenderer.invoke('groups:write', groups),
 
+  setInspectorOpen: (open) => ipcRenderer.invoke('ui:setInspectorOpen', open),
   playerRead: () => ipcRenderer.invoke('player:read'),
   playerWrite: (next) => ipcRenderer.invoke('player:write', next),
 

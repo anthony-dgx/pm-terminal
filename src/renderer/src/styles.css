@@ -670,3 +670,24 @@ kbd {
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; flex: 1;
 }
 .time-sec-n { font-family: var(--mono); font-size: 10px; }
+
+/* ---- collapsible inspector ---- */
+
+.tab-close {
+  color: var(--text-faint); font-size: 14px; line-height: 1; padding: 3px 5px;
+}
+.tab-close:hover { color: var(--text); }
+
+/* Collapsed, the panel becomes a thin strip that reads bottom-to-top. */
+.inspector-rail {
+  flex-shrink: 0; width: 26px; display: flex; flex-direction: column;
+  align-items: center; gap: 9px; padding: 9px 0;
+  background: var(--bg-1); border: none; border-left: 1px solid var(--line);
+  color: var(--text-faint);
+}
+.inspector-rail:hover { color: var(--text); background: var(--bg-2); }
+.inspector-rail-caret { font-size: 13px; line-height: 1; }
+.inspector-rail-label {
+  writing-mode: vertical-rl; font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.09em;
+}

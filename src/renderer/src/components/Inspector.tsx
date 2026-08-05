@@ -478,10 +478,12 @@ export function Inspector({
   refreshKey,
   profilesKey,
   onProfilesChanged,
+  onClose,
 }: {
   refreshKey: number
   profilesKey: number
   onProfilesChanged: () => void
+  onClose: () => void
 }): React.ReactElement {
   const [tab, setTab] = useState<Tab>('mcp')
   const [loadedView, setLoadedView] = useState<LoadedView>('skills')
@@ -536,6 +538,9 @@ export function Inspector({
         </button>
         <button className="refresh" onClick={() => void refresh()} title="Refresh">
           ↻
+        </button>
+        <button className="tab-close" onClick={onClose} title="Hide panel (Cmd+I)">
+          ›
         </button>
       </nav>
 

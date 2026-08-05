@@ -8,6 +8,7 @@ interface Prefs {
   lastCwd?: string
   lastModel?: string
   lastProfileId?: string | null
+  inspectorOpen?: boolean
   player?: { url?: string; volume?: number }
 }
 
