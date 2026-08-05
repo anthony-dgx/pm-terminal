@@ -46,6 +46,8 @@ interface Props {
   skillsKey: number
   /** True while a reply is in flight. */
   working?: boolean
+  /** Prompts already sent in this session, oldest first. */
+  history: string[]
 }
 
 export function Composer({
@@ -56,11 +58,16 @@ export function Composer({
   disabled,
   skillsKey,
   working = false,
+  history,
 }: Props): React.ReactElement {
   const [skills, setSkills] = useState<SkillView[]>([])
   const [query, setQuery] = useState<string | null>(null)
   const [active, setActive] = useState(0)
   const taRef = useRef<HTMLTextAreaElement>(null)
+  // Shell-style recall: null means "editing my own draft", otherwise an index
+  // into `history`. The draft is stashed so Down can bring it back.
+  const histIndex = useRef<number | null>(null)
+  const stashedDraft = useRef('')
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -85,6 +92,19 @@ export function Composer({
   const syncQuery = useCallback((el: HTMLTextAreaElement) => {
     setQuery(activeQuery(el.value, el.selectionStart ?? el.value.length))
   }, [])
+
+  /** Put a recalled prompt in the box with the caret at the end. */
+  const recall = useCallback(
+    (text: string) => {
+      onChange(text)
+      requestAnimationFrame(() => {
+        const el = taRef.current
+        if (!el) return
+        el.setSelectionRange(text.length, text.length)
+      })
+    },
+    [onChange],
+  )
 
   const accept = useCallback(
     (skill: SkillView) => {
@@ -126,8 +146,43 @@ export function Composer({
         return
       }
     }
+    // History recall, only when the caret could not usefully move instead. Up
+    // on the first line and Down on the last line are free; anywhere else the
+    // arrows must still move the caret through a multi-line draft.
+    const el = e.currentTarget
+    const collapsed = el.selectionStart === el.selectionEnd
+    const onFirstLine = !el.value.slice(0, el.selectionStart ?? 0).includes('\n')
+    const onLastLine = !el.value.slice(el.selectionEnd ?? 0).includes('\n')
+
+    if (e.key === 'ArrowUp' && collapsed && onFirstLine && history.length) {
+      e.preventDefault()
+      if (histIndex.current === null) {
+        stashedDraft.current = el.value
+        histIndex.current = history.length - 1
+      } else if (histIndex.current > 0) {
+        histIndex.current -= 1
+      }
+      recall(history[histIndex.current])
+      return
+    }
+
+    if (e.key === 'ArrowDown' && collapsed && onLastLine && histIndex.current !== null) {
+      e.preventDefault()
+      if (histIndex.current < history.length - 1) {
+        histIndex.current += 1
+        recall(history[histIndex.current])
+      } else {
+        // Past the newest entry, hand back whatever was being typed.
+        histIndex.current = null
+        recall(stashedDraft.current)
+      }
+      return
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
+      histIndex.current = null
+      stashedDraft.current = ''
       onSubmit()
     }
   }
@@ -168,6 +223,10 @@ export function Composer({
         value={value}
         placeholder={placeholder}
         onChange={(e) => {
+          // Typing your own text drops you out of history, so the next Up
+          // starts again from the most recent prompt and Down can restore
+          // this draft. Recall calls the prop directly and never lands here.
+          histIndex.current = null
           onChange(e.target.value)
           syncQuery(e.target)
         }}
@@ -179,7 +238,8 @@ export function Composer({
       />
       <div className="composer-actions">
         <span className="panel-hint">
-          Enter to send, Shift+Enter for a newline, <code>/</code> for skills
+          Enter to send, Shift+Enter for a newline, <code>/</code> for skills, <code>↑</code> for
+          history
         </span>
         <button
           className="btn btn-primary"

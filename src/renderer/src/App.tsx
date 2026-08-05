@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
   HistoryEntry,
   MainEvent,
@@ -240,6 +240,17 @@ export function App(): React.ReactElement {
     }
   }, [newSession])
 
+  // Everything you typed in this session, oldest first, including prompts
+  // rehydrated from a resumed transcript.
+  const userPrompts = useMemo(
+    () =>
+      turns
+        .filter((t) => t.role === 'user')
+        .map((t) => t.blocks.filter((b) => b.kind === 'text').map((b) => (b.kind === 'text' ? b.text : '')).join('\n'))
+        .filter((t) => t.trim().length > 0),
+    [turns],
+  )
+
   const copyConversation = useCallback(
     () =>
       turns
@@ -377,6 +388,7 @@ export function App(): React.ReactElement {
             disabled={busy}
             skillsKey={inspectorKey}
             working={awaiting}
+            history={userPrompts}
           />
         </main>
 
