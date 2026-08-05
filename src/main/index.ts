@@ -46,10 +46,38 @@ function createWindow(): BrowserWindow {
   else if (rendererUrl) void win.loadURL(rendererUrl)
   else void win.loadFile(join(__dirname, '../renderer/index.html'))
 
-  // External links open in the real browser, never inside the app shell.
+  // Only http(s) and mailto reach the real browser; anything else is dropped
+  // rather than handed to the OS.
+  const openOutside = (url: string): void => {
+    if (/^(https?|mailto):/i.test(url)) void shell.openExternal(url)
+  }
+
+  const isOwnPage = (url: string): boolean => {
+    if (rendererUrl && url.startsWith(new URL(rendererUrl).origin)) return true
+    if (devUrl && url.startsWith(devUrl)) return true
+    return url.startsWith('file://')
+  }
+
+  // window.open and target=_blank.
   win.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    openOutside(url)
     return { action: 'deny' }
+  })
+
+  // A plain <a href> in rendered markdown has no target, so it navigates the
+  // whole window and the app disappears behind a web page. Send it to the
+  // browser instead and stay put.
+  win.webContents.on('will-navigate', (event, url) => {
+    if (isOwnPage(url)) return
+    event.preventDefault()
+    openOutside(url)
+  })
+
+  // Same for a redirect that only reveals its destination mid-flight.
+  win.webContents.on('will-redirect', (event, url) => {
+    if (isOwnPage(url)) return
+    event.preventDefault()
+    openOutside(url)
   })
 
   win.on('closed', () => {
