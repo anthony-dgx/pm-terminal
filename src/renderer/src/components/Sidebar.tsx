@@ -25,6 +25,7 @@ function shortCwd(cwd: string, home: string): string {
 }
 
 const DRAG_TYPE = 'application/x-claude-session'
+const GROUP_DRAG_TYPE = 'application/x-claude-group'
 
 type Bucket = 'today' | 'week' | 'before'
 
@@ -175,6 +176,11 @@ interface GroupHeaderProps {
   onNewChat: () => void
   onUngroupAll: () => void
   onDelete: () => void
+  onDragStart: () => void
+  onDragEnd: () => void
+  onMove: (delta: -1 | 1) => void
+  canMoveUp: boolean
+  canMoveDown: boolean
 }
 
 function GroupHeader({
@@ -189,6 +195,11 @@ function GroupHeader({
   onNewChat,
   onUngroupAll,
   onDelete,
+  onDragStart,
+  onDragEnd,
+  onMove,
+  canMoveUp,
+  canMoveDown,
 }: GroupHeaderProps): React.ReactElement {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(group.name)
@@ -207,7 +218,19 @@ function GroupHeader({
   }
 
   return (
-    <div className={`grp-head grp-${group.color} ${dropActive ? 'is-drop' : ''}`}>
+    <div
+      className={`grp-head grp-${group.color} ${dropActive ? 'is-drop' : ''}`}
+      // The header is the drag handle. The body stays undraggable so session
+      // rows keep their own drag behaviour.
+      draggable={!editing}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(GROUP_DRAG_TYPE, group.id)
+        e.dataTransfer.effectAllowed = 'move'
+        onDragStart()
+      }}
+      onDragEnd={onDragEnd}
+      title="Drag to reorder"
+    >
       <button className="grp-caret" onClick={onToggle} title={group.collapsed ? 'Expand' : 'Collapse'}>
         {group.collapsed ? '▸' : '▾'}
       </button>
@@ -286,6 +309,13 @@ function GroupHeader({
             ))}
           </select>
 
+          <button className="grp-menu-item" disabled={!canMoveUp} onClick={() => onMove(-1)}>
+            Move up
+          </button>
+          <button className="grp-menu-item" disabled={!canMoveDown} onClick={() => onMove(1)}>
+            Move down
+          </button>
+
           <button
             className="grp-menu-item"
             onClick={() => {
@@ -339,6 +369,7 @@ export function Sidebar({
   const [filter, setFilter] = useState('')
   const [loading, setLoading] = useState(true)
   const [dragging, setDragging] = useState<string | null>(null)
+  const [draggingGroup, setDraggingGroup] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<string | null>(null)
   const [profiles, setProfiles] = useState<AgentProfile[]>([])
   const [refreshing, setRefreshing] = useState(false)
@@ -447,8 +478,44 @@ export function Sidebar({
     [groups, persist],
   )
 
+  /** Move a group so it lands at another group's position. */
+  const reorder = useCallback(
+    (srcId: string, destId: string) => {
+      if (srcId === destId) return
+      const from = groups.findIndex((g) => g.id === srcId)
+      const to = groups.findIndex((g) => g.id === destId)
+      if (from === -1 || to === -1) return
+      const next = [...groups]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      persist(next)
+    },
+    [groups, persist],
+  )
+
+  const moveGroup = useCallback(
+    (id: string, delta: -1 | 1) => {
+      const from = groups.findIndex((g) => g.id === id)
+      const to = from + delta
+      if (from === -1 || to < 0 || to >= groups.length) return
+      const next = [...groups]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      persist(next)
+    },
+    [groups, persist],
+  )
+
   const dropHandlers = (groupId: string | null) => ({
     onDragOver: (e: React.DragEvent) => {
+      // A group being dragged reorders; a session being dragged is filed.
+      if (draggingGroup) {
+        if (groupId === null) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setDropTarget(groupId)
+        return
+      }
       if (!dragging) return
       e.preventDefault()
       e.dataTransfer.dropEffect = 'move'
@@ -457,10 +524,16 @@ export function Sidebar({
     onDragLeave: () => setDropTarget(null),
     onDrop: (e: React.DragEvent) => {
       e.preventDefault()
-      const sessionId = e.dataTransfer.getData(DRAG_TYPE) || dragging
-      if (sessionId) assign(sessionId, groupId)
+      const movedGroup = e.dataTransfer.getData(GROUP_DRAG_TYPE) || draggingGroup
+      if (movedGroup && groupId) {
+        reorder(movedGroup, groupId)
+      } else {
+        const sessionId = e.dataTransfer.getData(DRAG_TYPE) || dragging
+        if (sessionId) assign(sessionId, groupId)
+      }
       setDropTarget(null)
       setDragging(null)
+      setDraggingGroup(null)
     },
   })
 
@@ -537,6 +610,14 @@ export function Sidebar({
                 onNewChat={() => onNewInGroup(g.profileId)}
                 onUngroupAll={() => patch(g.id, (x) => ({ ...x, sessionIds: [] }))}
                 onDelete={() => persist(groups.filter((x) => x.id !== g.id))}
+                onDragStart={() => setDraggingGroup(g.id)}
+                onDragEnd={() => {
+                  setDraggingGroup(null)
+                  setDropTarget(null)
+                }}
+                onMove={(delta) => moveGroup(g.id, delta)}
+                canMoveUp={groups.findIndex((x) => x.id === g.id) > 0}
+                canMoveDown={groups.findIndex((x) => x.id === g.id) < groups.length - 1}
               />
               {!g.collapsed && (
                 <div className="grp-body">

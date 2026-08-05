@@ -691,3 +691,8 @@ kbd {
   writing-mode: vertical-rl; font-size: 10px;
   text-transform: uppercase; letter-spacing: 0.09em;
 }
+
+.grp-head[draggable='true'] { cursor: grab; }
+.grp-head:active { cursor: grabbing; }
+.grp-menu-item:disabled { opacity: 0.35; cursor: default; }
+.grp-menu-item:disabled:hover { background: none; color: var(--text-dim); }
