@@ -65,6 +65,20 @@ function ToolBlockView({ block }: { block: Extract<Block, { kind: 'tool' }> }): 
   )
 }
 
+function ImageBlockView({ block }: { block: Extract<Block, { kind: 'image' }> }): React.ReactElement {
+  const [full, setFull] = useState(false)
+  const src = `data:${block.mediaType};base64,${block.data}`
+  return (
+    <img
+      className={`turn-image ${full ? 'is-full' : ''}`}
+      src={src}
+      alt="attached"
+      onClick={() => setFull((f) => !f)}
+      title={full ? 'Click to shrink' : 'Click to enlarge'}
+    />
+  )
+}
+
 function ThinkingView({ text }: { text: string }): React.ReactElement {
   const [open, setOpen] = useState(false)
   return (
@@ -86,6 +100,7 @@ function turnToMarkdown(turn: Turn, streamBuffer?: string): string {
   const parts: string[] = []
   for (const b of turn.blocks) {
     if (b.kind === 'text') parts.push(b.text)
+    else if (b.kind === 'image') parts.push('[image]')
     else if (b.kind === 'thinking') continue
     else if (b.kind === 'tool') parts.push(`\`${b.name}\`: ${toolSummary(b.name, b.input)}`)
   }
@@ -119,6 +134,7 @@ export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElem
         {turn.blocks.map((b, i) => {
           if (b.kind === 'text') return <Markdown key={i} source={b.text} />
           if (b.kind === 'thinking') return <ThinkingView key={i} text={b.text} />
+          if (b.kind === 'image') return <ImageBlockView key={i} block={b} />
           return <ToolBlockView key={b.id} block={b} />
         })}
         {/* Text still streaming after the already-finalized blocks above. */}

@@ -696,3 +696,30 @@ kbd {
 .grp-head:active { cursor: grabbing; }
 .grp-menu-item:disabled { opacity: 0.35; cursor: default; }
 .grp-menu-item:disabled:hover { background: none; color: var(--text-dim); }
+
+/* ---- pasted images ---- */
+
+.attachments { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 7px; }
+.attachment { position: relative; }
+.attachment img {
+  display: block; height: 62px; width: auto; max-width: 150px; object-fit: cover;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg-3);
+}
+.attachment-x {
+  position: absolute; top: -6px; right: -6px; width: 17px; height: 17px;
+  border-radius: 50%; background: var(--bg-3); border: 1px solid var(--line);
+  color: var(--text-dim); font-size: 12px; line-height: 1; padding: 0;
+}
+.attachment-x:hover { color: var(--err); border-color: var(--err); }
+.attachment-dim {
+  position: absolute; left: 3px; bottom: 3px; font-family: var(--mono);
+  font-size: 9px; color: #fff; background: rgba(0, 0, 0, 0.6);
+  padding: 0 3px; border-radius: 3px;
+}
+.composer.is-dropping textarea { border-color: var(--accent); background: var(--bg-3); }
+
+.turn-image {
+  display: block; max-width: 340px; max-height: 240px; width: auto;
+  border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; cursor: zoom-in;
+}
+.turn-image.is-full { max-width: 100%; max-height: none; cursor: zoom-out; }

@@ -9,7 +9,13 @@ import { readGroups, writeGroups } from './groups.js'
 import { defaultCwd, readPlayer, readPrefs, writePlayer, writePrefs } from './prefs.js'
 import { serveRenderer } from './server.js'
 import { profilePrompt, readProfiles, writeProfiles } from './profiles.js'
-import type { AgentProfile, MainEvent, PermissionAnswer, SessionGroup } from '../shared/types.js'
+import type {
+  AgentProfile,
+  Attachment,
+  MainEvent,
+  PermissionAnswer,
+  SessionGroup,
+} from '../shared/types.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -117,12 +123,12 @@ function registerIpc(): void {
     return session.getInfo()
   })
 
-  ipcMain.handle('session:send', (event, text: string) => {
+  ipcMain.handle('session:send', (event, text: string, images?: Attachment[]) => {
     const win = windowOf(event)
     if (!win) return
     const session = sessions.get(win.id)
     if (!session) throw new Error('No session started for this window.')
-    session.send(text)
+    session.send(text, images ?? [])
   })
 
   ipcMain.handle('session:interrupt', (event) => {

@@ -80,9 +80,21 @@ export interface UsageView {
   turns: number
 }
 
-/** A single renderable block inside an assistant turn. */
+/** An image pasted or dropped into the composer. */
+export interface Attachment {
+  id: string
+  name: string
+  mediaType: string
+  /** Base64 payload without the data-url prefix. */
+  data: string
+  width: number
+  height: number
+}
+
+/** A single renderable block inside a turn. */
 export type Block =
   | { kind: 'text'; text: string }
+  | { kind: 'image'; mediaType: string; data: string }
   | { kind: 'thinking'; text: string }
   | {
       kind: 'tool'

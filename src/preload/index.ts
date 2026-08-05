@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
   AgentProfile,
+  Attachment,
   AgentView,
   ContextUsageView,
   HistoryEntry,
@@ -24,7 +25,7 @@ export interface DeskApi {
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
     profileId?: string | null
   }): Promise<SessionInfo | null>
-  send(text: string): Promise<void>
+  send(text: string, images?: Attachment[]): Promise<void>
   interrupt(): Promise<void>
   sessionInfo(): Promise<SessionInfo | null>
   sessionTurns(): Promise<Turn[]>
@@ -73,7 +74,7 @@ export interface DeskApi {
 
 const api: DeskApi = {
   startSession: (opts) => ipcRenderer.invoke('session:start', opts),
-  send: (text) => ipcRenderer.invoke('session:send', text),
+  send: (text, images) => ipcRenderer.invoke('session:send', text, images),
   interrupt: () => ipcRenderer.invoke('session:interrupt'),
   sessionInfo: () => ipcRenderer.invoke('session:info'),
   sessionTurns: () => ipcRenderer.invoke('session:turns'),

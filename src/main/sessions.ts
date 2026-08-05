@@ -249,8 +249,22 @@ export async function readTranscript(projectSlug: string, sessionId: string): Pr
         continue
       }
       const text = userText(content)
-      if (!text) continue
-      turns.push({ id, role: 'user', blocks: [{ kind: 'text', text }], at })
+      const images: Block[] = Array.isArray(content)
+        ? (content as { type?: string; source?: { media_type?: string; data?: string } }[])
+            .filter((c) => c.type === 'image' && c.source?.data)
+            .map((c) => ({
+              kind: 'image' as const,
+              mediaType: c.source?.media_type ?? 'image/png',
+              data: c.source?.data ?? '',
+            }))
+        : []
+      if (!text && !images.length) continue
+      turns.push({
+        id,
+        role: 'user',
+        blocks: [...images, ...(text ? [{ kind: 'text' as const, text }] : [])],
+        at,
+      })
       continue
     }
 

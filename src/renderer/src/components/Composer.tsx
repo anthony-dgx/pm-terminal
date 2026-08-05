@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { SkillView } from '../../../shared/types.js'
+import type { Attachment, SkillView } from '../../../shared/types.js'
 import { desk } from '../lib/api.js'
+import { fileToAttachment, imageFilesFrom } from '../lib/images.js'
 
 const MAX_RESULTS = 60
 
@@ -39,7 +40,7 @@ function activeQuery(text: string, caret: number): string | null {
 interface Props {
   value: string
   onChange: (v: string) => void
-  onSubmit: () => void
+  onSubmit: (images: Attachment[]) => void
   placeholder: string
   disabled: boolean
   /** Bumped when a session starts, so the live 150-skill list replaces the disk one. */
@@ -67,6 +68,8 @@ export function Composer({
   // Shell-style recall: null means "editing my own draft", otherwise an index
   // into `history`. The draft is stashed so Down can bring it back.
   const histIndex = useRef<number | null>(null)
+  const [images, setImages] = useState<Attachment[]>([])
+  const [dropping, setDropping] = useState(false)
   const stashedDraft = useRef('')
   const listRef = useRef<HTMLDivElement>(null)
 
@@ -181,14 +184,39 @@ export function Composer({
 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      histIndex.current = null
-      stashedDraft.current = ''
-      onSubmit()
+      submit()
     }
   }
 
+  const submit = (): void => {
+    histIndex.current = null
+    stashedDraft.current = ''
+    onSubmit(images)
+    setImages([])
+  }
+
+  const ingest = useCallback(async (files: File[]) => {
+    const added = (await Promise.all(files.map(fileToAttachment))).filter((a): a is Attachment => a !== null)
+    if (added.length) setImages((prev) => [...prev, ...added])
+  }, [])
+
   return (
-    <div className={`composer ${working ? 'is-working' : ''}`}>
+    <div
+      className={`composer ${working ? 'is-working' : ''} ${dropping ? 'is-dropping' : ''}`}
+      onDragOver={(e) => {
+        if (!imageFilesFrom(e.dataTransfer).length && !e.dataTransfer?.types.includes('Files')) return
+        e.preventDefault()
+        setDropping(true)
+      }}
+      onDragLeave={() => setDropping(false)}
+      onDrop={(e) => {
+        const files = imageFilesFrom(e.dataTransfer)
+        setDropping(false)
+        if (!files.length) return
+        e.preventDefault()
+        void ingest(files)
+      }}
+    >
       {open && (
         <div className="slash-menu" ref={listRef}>
           <div className="slash-head">
@@ -218,6 +246,26 @@ export function Composer({
         </div>
       )}
 
+      {images.length > 0 && (
+        <div className="attachments">
+          {images.map((a) => (
+            <div key={a.id} className="attachment">
+              <img src={`data:${a.mediaType};base64,${a.data}`} alt={a.name} />
+              <button
+                className="attachment-x"
+                onClick={() => setImages((prev) => prev.filter((x) => x.id !== a.id))}
+                title="Remove"
+              >
+                ×
+              </button>
+              <span className="attachment-dim">
+                {a.width}×{a.height}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <textarea
         ref={taRef}
         value={value}
@@ -234,17 +282,24 @@ export function Composer({
         onClick={(e) => syncQuery(e.currentTarget)}
         onBlur={() => setQuery(null)}
         onKeyDown={onKeyDown}
+        onPaste={(e) => {
+          const files = imageFilesFrom(e.clipboardData)
+          if (!files.length) return
+          // Keep the image, drop the OS-supplied filename text alongside it.
+          e.preventDefault()
+          void ingest(files)
+        }}
         rows={3}
       />
       <div className="composer-actions">
         <span className="panel-hint">
           Enter to send, Shift+Enter for a newline, <code>/</code> for skills, <code>↑</code> for
-          history
+          history, paste or drop images
         </span>
         <button
           className="btn btn-primary"
-          disabled={!value.trim() || disabled || working}
-          onClick={onSubmit}
+          disabled={(!value.trim() && !images.length) || disabled || working}
+          onClick={submit}
         >
           {working ? 'Working...' : 'Send'}
         </button>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  Attachment,
   HistoryEntry,
   MainEvent,
   PermissionAnswer,
@@ -184,9 +185,10 @@ export function App(): React.ReactElement {
     [cwd, model, profileId],
   )
 
-  const submit = useCallback(async () => {
+  const submit = useCallback(
+    async (images: Attachment[] = []) => {
     const text = input.trim()
-    if (!text || busy) return
+    if ((!text && !images.length) || busy) return
     setInput('')
     if (mode.kind === 'archive') {
       // Typing into an opened session continues it. The transcript stays on
@@ -199,8 +201,10 @@ export function App(): React.ReactElement {
     poke('perk')
     setAwaitSince(Date.now())
     setAwaiting(true)
-    await desk.send(text)
-  }, [input, busy, mode, info, ensureSession, poke])
+    await desk.send(text, images)
+    },
+    [input, busy, mode, info, ensureSession, poke],
+  )
 
   const changeModel = useCallback((next: string) => {
     setModel(next)
@@ -405,7 +409,7 @@ export function App(): React.ReactElement {
           <Composer
             value={input}
             onChange={setInput}
-            onSubmit={() => void submit()}
+            onSubmit={(images) => void submit(images)}
             placeholder={
               mode.kind === 'archive' ? 'Continue this session...' : 'Message Claude...'
             }

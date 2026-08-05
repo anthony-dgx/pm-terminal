@@ -13,6 +13,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
   AgentView,
+  Attachment,
   ModelOption,
   Block,
   ContextUsageView,
@@ -68,11 +69,21 @@ class PromptQueue implements AsyncIterable<SDKUserMessage> {
   private waiter: ((r: IteratorResult<SDKUserMessage>) => void) | null = null
   private closed = false
 
-  push(text: string, sessionId: string | null): void {
+  push(text: string, sessionId: string | null, images: Attachment[] = []): void {
     if (this.closed) return
+    // Images go first so the text can refer to them.
+    const content = images.length
+      ? [
+          ...images.map((a) => ({
+            type: 'image' as const,
+            source: { type: 'base64' as const, media_type: a.mediaType, data: a.data },
+          })),
+          ...(text ? [{ type: 'text' as const, text }] : []),
+        ]
+      : text
     const msg: SDKUserMessage = {
       type: 'user',
-      message: { role: 'user', content: text },
+      message: { role: 'user', content } as SDKUserMessage['message'],
       parent_tool_use_id: null,
       session_id: sessionId ?? '',
       // The SDK fills in a real uuid; this keeps the type satisfied.
@@ -165,17 +176,20 @@ export class AgentSession {
   }
 
   /** Send a prompt. Starts the query loop on first call. */
-  send(text: string): void {
+  send(text: string, images: Attachment[] = []): void {
     const turn: Turn = {
       id: randomUUID(),
       role: 'user',
-      blocks: [{ kind: 'text', text }],
+      blocks: [
+        ...images.map((a) => ({ kind: 'image' as const, mediaType: a.mediaType, data: a.data })),
+        ...(text ? [{ kind: 'text' as const, text }] : []),
+      ],
       at: new Date().toISOString(),
     }
     this.turns.push(turn)
     this.emit({ type: 'turn', turn })
 
-    this.queue.push(text, this.info.sessionId)
+    this.queue.push(text, this.info.sessionId, images)
     if (!this.q) this.start()
   }
 
