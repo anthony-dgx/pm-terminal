@@ -1,0 +1,32 @@
+{
+  "name": "claude-desk",
+  "version": "0.1.0",
+  "description": "Electron desktop client for Claude Code with a live MCP/skills inspector and first-class copy affordances",
+  "main": "./out/main/index.js",
+  "author": "Anthony Dagneaux",
+  "license": "ISC",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.221",
+    "highlight.js": "^11.11.1",
+    "marked": "^18.0.9",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^5.2.0",
+    "electron": "^43.2.0",
+    "electron-vite": "^5.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  }
+}

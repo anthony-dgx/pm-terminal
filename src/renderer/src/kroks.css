@@ -1,0 +1,219 @@
+/* Kroks, ported from Lab/black-cat-pet/renderer/styles.css.
+   Same animations, rescaled and anchored into the sidebar footer. The original
+   drag regions and click-through rules are gone on purpose: here the pet is
+   part of the window, not a floating one. */
+
+.kroks {
+  flex-shrink: 0;
+  border-top: 1px solid var(--line);
+  background: var(--bg-2);
+  user-select: none;
+}
+
+.kroks-stage {
+  position: relative;
+  height: 118px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.kroks-cat {
+  position: relative;
+  width: 92px;
+  height: 114px; /* keeps the artwork's 1125:1398 aspect ratio */
+  transform-origin: 50% 100%;
+  cursor: pointer;
+  z-index: 10;
+}
+
+.kroks-stack {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 100%;
+  animation: kroks-breathe 3.2s ease-in-out infinite;
+}
+
+.kroks-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  -webkit-user-drag: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Tail wags around where it attaches to the body (lower-left). */
+.kroks-tail {
+  transform-origin: 15% 73%;
+  animation: kroks-tail-wag 2s ease-in-out infinite;
+}
+@keyframes kroks-tail-wag {
+  0%, 100% { transform: translate(7px, -2px) rotate(-11deg); }
+  50% { transform: translate(7px, -2px) rotate(11deg); }
+}
+/* Mid-turn, the tail wags much faster. */
+.kroks-cat.excited .kroks-tail { animation: kroks-tail-wag 0.6s ease-in-out infinite; }
+
+/* Nudge the head down a touch so it overlaps the body and closes the seam. */
+.kroks-head { transform: translateY(2px); }
+
+.kroks-head-group {
+  position: absolute;
+  inset: 0;
+  animation: kroks-head-breathe 3.2s ease-in-out infinite 0.15s;
+}
+.kroks-head-follow {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.16s ease-out;
+}
+.kroks-eyes { transition: transform 0.12s ease-out; }
+
+.kroks-ear-l {
+  transform-origin: 38% 6%;
+  animation: kroks-ear-twitch 5s ease-in-out infinite;
+}
+.kroks-ear-r {
+  transform-origin: 68% 6%;
+  animation: kroks-ear-twitch-r 6.3s ease-in-out infinite 0.5s;
+}
+@keyframes kroks-ear-twitch {
+  0%, 88%, 100% { transform: rotate(0deg); }
+  92% { transform: rotate(-7deg); }
+  96% { transform: rotate(3deg); }
+}
+@keyframes kroks-ear-twitch-r {
+  0%, 88%, 100% { transform: translateY(2px) rotate(0deg); }
+  92% { transform: translateY(2px) rotate(-7deg); }
+  96% { transform: translateY(2px) rotate(3deg); }
+}
+
+/* Transparent click targets over each ear. */
+.kroks-ear-hot { position: absolute; z-index: 5; cursor: pointer; }
+.kroks-ear-hot-l { left: 24%; top: 1%; width: 21%; height: 22%; }
+.kroks-ear-hot-r { left: 57%; top: 1%; width: 21%; height: 22%; }
+
+.kroks-ear-l.poke { animation: kroks-ear-poke-l 0.5s ease; }
+.kroks-ear-r.poke { animation: kroks-ear-poke-r 0.5s ease; }
+@keyframes kroks-ear-poke-l {
+  0%, 100% { transform: rotate(0deg); }
+  30% { transform: rotate(-22deg); }
+  60% { transform: rotate(9deg); }
+}
+@keyframes kroks-ear-poke-r {
+  0%, 100% { transform: translateY(2px) rotate(0deg); }
+  30% { transform: translateY(2px) rotate(22deg); }
+  60% { transform: translateY(2px) rotate(-9deg); }
+}
+
+.kroks-shadow {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  width: 76px;
+  height: auto;
+  margin-left: -38px;
+  image-rendering: pixelated;
+  opacity: 0.4;
+  z-index: -1;
+  animation: kroks-shadow-pulse 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes kroks-breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-1px); }
+}
+@keyframes kroks-head-breathe {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@keyframes kroks-shadow-pulse {
+  0%, 100% { transform: scaleX(1); }
+  50% { transform: scaleX(0.93); }
+}
+
+/* Meow: three hops, sound plays once. */
+.kroks-cat.meow { animation: kroks-jump 0.42s ease 3; }
+@keyframes kroks-jump {
+  0% { transform: translateY(0) scaleY(1); }
+  30% { transform: translateY(-22px) scaleY(1.06); }
+  55% { transform: translateY(0) scaleY(0.94); }
+  75% { transform: translateY(-7px) scaleY(1.02); }
+  100% { transform: translateY(0) scaleY(1); }
+}
+
+/* Petting / wake wiggle. */
+.kroks-cat.happy .kroks-stack { animation: kroks-wiggle 0.5s ease; }
+@keyframes kroks-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-5deg); }
+  75% { transform: rotate(5deg); }
+}
+
+.kroks-heart {
+  position: absolute;
+  bottom: 78px;
+  width: 20px;
+  height: auto;
+  pointer-events: none;
+  image-rendering: pixelated;
+  animation: kroks-float-up 1.1s ease-out forwards;
+}
+.kroks-zzz {
+  position: absolute;
+  bottom: 74px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  pointer-events: none;
+  animation: kroks-float-up 2.4s ease-out forwards;
+}
+@keyframes kroks-float-up {
+  0% { transform: translateY(0) scale(0.6); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translateY(-52px) scale(1.1); opacity: 0; }
+}
+
+/* Napping: tail and ears go still, breathing slows. */
+.kroks-cat.state-sleep .kroks-tail,
+.kroks-cat.state-sleep .kroks-ear-l,
+.kroks-cat.state-sleep .kroks-ear-r { animation-play-state: paused; }
+.kroks-cat.state-sleep .kroks-stack { animation: kroks-breathe 5s ease-in-out infinite; }
+.kroks-cat.state-sleep .kroks-head-group { animation: kroks-head-breathe 5s ease-in-out infinite 0.2s; }
+
+.kroks-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 5px;
+}
+.kroks-name {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+  flex: 1;
+}
+.kroks-mute {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  font-size: 10px;
+  font-family: var(--mono);
+  padding: 0 2px;
+}
+.kroks-mute:hover { color: var(--text); }
+
+@media (prefers-reduced-motion: reduce) {
+  .kroks-stack,
+  .kroks-head-group,
+  .kroks-tail,
+  .kroks-ear-l,
+  .kroks-ear-r,
+  .kroks-shadow { animation: none; }
+}

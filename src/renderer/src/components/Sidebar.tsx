@@ -1,0 +1,598 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  GROUP_COLORS,
+  type AgentProfile,
+  type GroupColor,
+  type HistoryEntry,
+  type SessionGroup,
+} from '../../../shared/types.js'
+import { desk } from '../lib/api.js'
+import { Kroks, type KroksReaction } from './Kroks.js'
+import { Player } from './Player.js'
+
+function relativeTime(ms: number): string {
+  const diff = Date.now() - ms
+  const mins = Math.round(diff / 60000)
+  if (mins < 1) return 'now'
+  if (mins < 60) return `${mins}m`
+  const hours = Math.round(mins / 60)
+  if (hours < 24) return `${hours}h`
+  return `${Math.round(hours / 24)}d`
+}
+
+function shortCwd(cwd: string, home: string): string {
+  return cwd.startsWith(home) ? `~${cwd.slice(home.length)}` : cwd
+}
+
+const DRAG_TYPE = 'application/x-claude-session'
+
+type Bucket = 'today' | 'week' | 'before'
+
+/**
+ * Which time bucket a session falls into. "This week" is a rolling seven days
+ * rather than a calendar week, so a Monday morning does not sweep everything
+ * from the past few days straight into "Before".
+ */
+function bucketOf(modifiedMs: number, now: number): Bucket {
+  const startOfToday = new Date(now)
+  startOfToday.setHours(0, 0, 0, 0)
+  if (modifiedMs >= startOfToday.getTime()) return 'today'
+  if (modifiedMs >= startOfToday.getTime() - 6 * 86_400_000) return 'week'
+  return 'before'
+}
+
+const BUCKET_LABELS: { key: Bucket; label: string }[] = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'This week' },
+  { key: 'before', label: 'Before' },
+]
+
+interface SessionRowProps {
+  entry: HistoryEntry
+  home: string
+  active: boolean
+  onOpen: (e: HistoryEntry) => void
+  onResume: (e: HistoryEntry) => void
+  onRename: (e: HistoryEntry, title: string) => void
+  onDragStart: (sessionId: string) => void
+  onDragEnd: () => void
+}
+
+function SessionRow({
+  entry,
+  home,
+  active,
+  onOpen,
+  onResume,
+  onRename,
+  onDragStart,
+  onDragEnd,
+}: SessionRowProps): React.ReactElement {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(entry.title)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setDraft(entry.title)
+  }, [entry.title])
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select()
+  }, [editing])
+
+  const commit = (): void => {
+    setEditing(false)
+    const next = draft.trim()
+    if (next && next !== entry.title) onRename(entry, next)
+    else setDraft(entry.title)
+  }
+
+  return (
+    <div
+      className={`hist ${active ? 'is-active' : ''}`}
+      // Dragging must be off while renaming or the input cannot be selected.
+      draggable={!editing}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(DRAG_TYPE, entry.sessionId)
+        e.dataTransfer.effectAllowed = 'move'
+        onDragStart(entry.sessionId)
+      }}
+      onDragEnd={onDragEnd}
+      onClick={() => {
+        if (!editing) onOpen(entry)
+      }}
+    >
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="hist-title-input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            e.stopPropagation()
+            if (e.key === 'Enter') commit()
+            if (e.key === 'Escape') {
+              setDraft(entry.title)
+              setEditing(false)
+            }
+          }}
+        />
+      ) : (
+        <div
+          className="hist-title"
+          onDoubleClick={(e) => {
+            e.stopPropagation()
+            setEditing(true)
+          }}
+          title={`${entry.title}\n\nDouble-click to rename`}
+        >
+          {entry.title}
+        </div>
+      )}
+      <div className="hist-meta">
+        <span className="hist-cwd">{shortCwd(entry.cwd, home)}</span>
+        <span>{relativeTime(entry.modifiedMs)}</span>
+      </div>
+      {!editing && (
+        <div className="hist-actions">
+          <button
+            className="hist-btn"
+            onClick={(ev) => {
+              ev.stopPropagation()
+              setEditing(true)
+            }}
+            title="Rename this session"
+          >
+            Rename
+          </button>
+          <button
+            className="hist-btn"
+            onClick={(ev) => {
+              ev.stopPropagation()
+              onResume(entry)
+            }}
+            title="Resume this session in a live agent"
+          >
+            Resume
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface GroupHeaderProps {
+  group: SessionGroup
+  count: number
+  dropActive: boolean
+  profiles: AgentProfile[]
+  onToggle: () => void
+  onRename: (name: string) => void
+  onColor: (c: GroupColor) => void
+  onProfile: (id: string | null) => void
+  onNewChat: () => void
+  onUngroupAll: () => void
+  onDelete: () => void
+}
+
+function GroupHeader({
+  group,
+  count,
+  dropActive,
+  profiles,
+  onToggle,
+  onRename,
+  onColor,
+  onProfile,
+  onNewChat,
+  onUngroupAll,
+  onDelete,
+}: GroupHeaderProps): React.ReactElement {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(group.name)
+  const [menu, setMenu] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (editing) inputRef.current?.select()
+  }, [editing])
+
+  const commit = (): void => {
+    setEditing(false)
+    const next = draft.trim()
+    if (next && next !== group.name) onRename(next)
+    else setDraft(group.name)
+  }
+
+  return (
+    <div className={`grp-head grp-${group.color} ${dropActive ? 'is-drop' : ''}`}>
+      <button className="grp-caret" onClick={onToggle} title={group.collapsed ? 'Expand' : 'Collapse'}>
+        {group.collapsed ? '▸' : '▾'}
+      </button>
+      <span className="grp-dot" />
+      {editing ? (
+        <input
+          ref={inputRef}
+          className="grp-name-input"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit()
+            if (e.key === 'Escape') {
+              setDraft(group.name)
+              setEditing(false)
+            }
+          }}
+        />
+      ) : (
+        <span className="grp-name" onDoubleClick={() => setEditing(true)} title="Double-click to rename">
+          {group.name}
+        </span>
+      )}
+      <span className="grp-count">{count}</span>
+      <button
+        className="grp-new"
+        onClick={onNewChat}
+        title={
+          group.profileId
+            ? `New chat with the ${profiles.find((p) => p.id === group.profileId)?.name ?? 'group'} profile`
+            : 'New chat in this group'
+        }
+      >
+        +
+      </button>
+      <button className="grp-menu-btn" onClick={() => setMenu((m) => !m)} title="Group options">
+        ···
+      </button>
+
+      {menu && (
+        <div className="grp-menu" onMouseLeave={() => setMenu(false)}>
+          <div className="grp-swatches">
+            {GROUP_COLORS.map((c) => (
+              <button
+                key={c}
+                className={`swatch grp-${c} ${group.color === c ? 'is-on' : ''}`}
+                onClick={() => {
+                  onColor(c)
+                  setMenu(false)
+                }}
+                title={c}
+              />
+            ))}
+          </div>
+          <button
+            className="grp-menu-item"
+            onClick={() => {
+              setEditing(true)
+              setMenu(false)
+            }}
+          >
+            Rename
+          </button>
+          <div className="grp-menu-label">Default profile</div>
+          <select
+            className="grp-profile-select"
+            value={group.profileId ?? ''}
+            onChange={(e) => onProfile(e.target.value || null)}
+          >
+            <option value="">None</option>
+            {profiles.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+
+          <button
+            className="grp-menu-item"
+            onClick={() => {
+              onUngroupAll()
+              setMenu(false)
+            }}
+          >
+            Ungroup all
+          </button>
+          <button
+            className="grp-menu-item is-danger"
+            onClick={() => {
+              onDelete()
+              setMenu(false)
+            }}
+          >
+            Delete group
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface Props {
+  home: string
+  activeSessionId: string | null
+  onOpen: (entry: HistoryEntry) => void
+  onResume: (entry: HistoryEntry) => void
+  onNew: () => void
+  onNewInGroup: (profileId: string | null | undefined) => void
+  /** Bumped when a session starts or finishes a turn, to refresh the list. */
+  activityKey: number
+  kroksReaction: KroksReaction
+  kroksWorking: boolean
+}
+
+export function Sidebar({
+  home,
+  activeSessionId,
+  onOpen,
+  onResume,
+  onNew,
+  onNewInGroup,
+  activityKey,
+  kroksReaction,
+  kroksWorking,
+}: Props): React.ReactElement {
+  const [entries, setEntries] = useState<HistoryEntry[]>([])
+  const [groups, setGroups] = useState<SessionGroup[]>([])
+  const [filter, setFilter] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [dragging, setDragging] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<string | null>(null)
+  const [profiles, setProfiles] = useState<AgentProfile[]>([])
+  const [refreshing, setRefreshing] = useState(false)
+  const [openBuckets, setOpenBuckets] = useState<Record<Bucket, boolean>>({
+    today: true,
+    week: false,
+    before: false,
+  })
+
+  useEffect(() => {
+    void Promise.all([desk.historyList({ limit: 120 }), desk.groupsRead(), desk.profilesRead()]).then(
+      ([e, g, pr]) => {
+        setEntries(e)
+        setGroups(g)
+        setProfiles(pr)
+        setLoading(false)
+      },
+    )
+  }, [])
+
+  const reload = useCallback(async () => {
+    setRefreshing(true)
+    try {
+      setEntries(await desk.historyList({ limit: 120 }))
+    } finally {
+      setRefreshing(false)
+    }
+  }, [])
+
+  // A session that just started is not in the list yet, and a finished turn
+  // changes its timestamp and order. Debounced because a busy turn can bump
+  // activityKey several times, and a full re-read walks every transcript.
+  const firstActivity = useRef(true)
+  useEffect(() => {
+    if (firstActivity.current) {
+      firstActivity.current = false
+      return
+    }
+    const t = window.setTimeout(() => void reload(), 1200)
+    return () => window.clearTimeout(t)
+  }, [activityKey, reload])
+
+  /** Single write path so the on-disk file always matches what is rendered. */
+  const persist = useCallback((next: SessionGroup[]) => {
+    setGroups(next)
+    void desk.groupsWrite(next)
+  }, [])
+
+  const byId = useMemo(() => new Map(entries.map((e) => [e.sessionId, e])), [entries])
+
+  const matches = useCallback(
+    (e: HistoryEntry) => {
+      const q = filter.toLowerCase()
+      if (!q) return true
+      return e.title.toLowerCase().includes(q) || e.cwd.toLowerCase().includes(q)
+    },
+    [filter],
+  )
+
+  const groupedIds = useMemo(() => new Set(groups.flatMap((g) => g.sessionIds)), [groups])
+  const ungrouped = useMemo(
+    () => entries.filter((e) => !groupedIds.has(e.sessionId) && matches(e)),
+    [entries, groupedIds, matches],
+  )
+
+  const buckets = useMemo(() => {
+    const now = Date.now()
+    const out: Record<Bucket, HistoryEntry[]> = { today: [], week: [], before: [] }
+    for (const e of ungrouped) out[bucketOf(e.modifiedMs, now)].push(e)
+    return out
+  }, [ungrouped])
+
+  // ---- group mutations ---------------------------------------------------
+
+  const newGroup = useCallback(() => {
+    const used = new Set(groups.map((g) => g.color))
+    const color = GROUP_COLORS.find((c) => !used.has(c)) ?? GROUP_COLORS[groups.length % GROUP_COLORS.length]
+    persist([
+      ...groups,
+      {
+        id: crypto.randomUUID(),
+        name: `Group ${groups.length + 1}`,
+        color,
+        collapsed: false,
+        sessionIds: [],
+      },
+    ])
+  }, [groups, persist])
+
+  const patch = useCallback(
+    (id: string, fn: (g: SessionGroup) => SessionGroup) =>
+      persist(groups.map((g) => (g.id === id ? fn(g) : g))),
+    [groups, persist],
+  )
+
+  const assign = useCallback(
+    (sessionId: string, groupId: string | null) => {
+      // Remove from every group first so a session lives in exactly one.
+      const cleaned = groups.map((g) => ({ ...g, sessionIds: g.sessionIds.filter((s) => s !== sessionId) }))
+      persist(
+        groupId === null
+          ? cleaned
+          : cleaned.map((g) => (g.id === groupId ? { ...g, sessionIds: [sessionId, ...g.sessionIds] } : g)),
+      )
+    },
+    [groups, persist],
+  )
+
+  const dropHandlers = (groupId: string | null) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!dragging) return
+      e.preventDefault()
+      e.dataTransfer.dropEffect = 'move'
+      setDropTarget(groupId ?? '__ungrouped__')
+    },
+    onDragLeave: () => setDropTarget(null),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault()
+      const sessionId = e.dataTransfer.getData(DRAG_TYPE) || dragging
+      if (sessionId) assign(sessionId, groupId)
+      setDropTarget(null)
+      setDragging(null)
+    },
+  })
+
+  const renameEntry = useCallback((entry: HistoryEntry, title: string) => {
+    // Optimistic: the SDK appends a customTitle to the transcript, and the next
+    // history read picks it up, but the sidebar should not wait for that.
+    setEntries((prev) => prev.map((e) => (e.sessionId === entry.sessionId ? { ...e, title } : e)))
+    void desk.historyRename(entry.sessionId, title, entry.cwd).catch(() => {
+      // Put the old name back if the write failed.
+      setEntries((prev) => prev.map((e) => (e.sessionId === entry.sessionId ? { ...e, title: entry.title } : e)))
+    })
+  }, [])
+
+  const onDragStart = useCallback((id: string) => setDragging(id), [])
+  const onDragEnd = useCallback(() => {
+    setDragging(null)
+    setDropTarget(null)
+  }, [])
+
+  const rowProps = {
+    home,
+    onOpen,
+    onResume,
+    onRename: renameEntry,
+    onDragStart,
+    onDragEnd,
+  }
+
+  return (
+    <aside className="sidebar">
+      <div className="sidebar-head">
+        <button className="btn btn-primary" onClick={onNew}>
+          New session
+        </button>
+        <button className="btn" onClick={newGroup} title="Create a session group">
+          + Group
+        </button>
+        <button
+          className="btn sidebar-refresh"
+          onClick={() => void reload()}
+          disabled={refreshing}
+          title="Re-read ~/.claude/projects"
+        >
+          {refreshing ? '·' : '↻'}
+        </button>
+      </div>
+      <input
+        className="filter"
+        placeholder="Search sessions..."
+        value={filter}
+        onChange={(e) => setFilter(e.target.value)}
+      />
+
+      <div className="sidebar-list">
+        {loading && <p className="panel-hint">Reading ~/.claude/projects...</p>}
+
+        {groups.map((g) => {
+          const members = g.sessionIds.map((id) => byId.get(id)).filter((e): e is HistoryEntry => Boolean(e))
+          const visible = members.filter(matches)
+          // Keep a group on screen while filtering only if something matches,
+          // but always show it when the filter is empty so it can be dropped on.
+          if (filter && !visible.length) return null
+          return (
+            <div key={g.id} className={`grp grp-${g.color}`} {...dropHandlers(g.id)}>
+              <GroupHeader
+                group={g}
+                count={members.length}
+                dropActive={dropTarget === g.id}
+                profiles={profiles}
+                onToggle={() => patch(g.id, (x) => ({ ...x, collapsed: !x.collapsed }))}
+                onRename={(name) => patch(g.id, (x) => ({ ...x, name }))}
+                onColor={(color) => patch(g.id, (x) => ({ ...x, color }))}
+                onProfile={(profileId) => patch(g.id, (x) => ({ ...x, profileId }))}
+                onNewChat={() => onNewInGroup(g.profileId)}
+                onUngroupAll={() => patch(g.id, (x) => ({ ...x, sessionIds: [] }))}
+                onDelete={() => persist(groups.filter((x) => x.id !== g.id))}
+              />
+              {!g.collapsed && (
+                <div className="grp-body">
+                  {visible.map((e) => (
+                    <SessionRow
+                      key={e.sessionId}
+                      entry={e}
+                      active={activeSessionId === e.sessionId}
+                      {...rowProps}
+                    />
+                  ))}
+                  {!members.length && <p className="grp-empty">Drag sessions here</p>}
+                </div>
+              )}
+            </div>
+          )
+        })}
+
+        <div
+          className={`ungrouped ${dropTarget === '__ungrouped__' ? 'is-drop' : ''}`}
+          {...dropHandlers(null)}
+        >
+          {groups.length > 0 && ungrouped.length > 0 && <div className="grp-divider">Ungrouped</div>}
+          {!loading && !ungrouped.length && !groups.length && <p className="panel-hint">No sessions found.</p>}
+
+          {BUCKET_LABELS.map(({ key, label }) => {
+            const items = buckets[key]
+            if (!items.length) return null
+            const open = openBuckets[key]
+            return (
+              <div key={key} className="time-sec">
+                <button
+                  className="time-sec-head"
+                  onClick={() => setOpenBuckets((b) => ({ ...b, [key]: !b[key] }))}
+                >
+                  <span className="grp-caret">{open ? '▾' : '▸'}</span>
+                  <span className="time-sec-label">{label}</span>
+                  <span className="time-sec-n">{items.length}</span>
+                </button>
+                {open &&
+                  items.map((e) => (
+                    <SessionRow
+                      key={e.sessionId}
+                      entry={e}
+                      active={activeSessionId === e.sessionId}
+                      {...rowProps}
+                    />
+                  ))}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <Player />
+      <Kroks reaction={kroksReaction} working={kroksWorking} />
+    </aside>
+  )
+}
