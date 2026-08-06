@@ -84,6 +84,7 @@ export function App(): React.ReactElement {
     defaultProfileId: string | null
     inspectorOpen: boolean
     sidebarOpen: boolean
+    theme: string
     claudePath: string | null
   } | null>(null)
 
@@ -93,6 +94,7 @@ export function App(): React.ReactElement {
   const [profilesKey, setProfilesKey] = useState(0)
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [theme, setTheme] = useState('default')
   const [notices, setNotices] = useState<{ level: string; text: string }[]>([])
   const [inspectorKey, setInspectorKey] = useState(0)
   // Bumped to ask the sidebar to create a group; it owns the group state.
@@ -121,6 +123,7 @@ export function App(): React.ReactElement {
       setEnv(e)
       setInspectorOpen(e.inspectorOpen)
       setSidebarOpen(e.sidebarOpen)
+      setTheme(e.theme)
       const first = blankConversation({
         cwd: e.defaultCwd,
         model: e.defaultModel,
@@ -194,6 +197,20 @@ export function App(): React.ReactElement {
     const el = scrollRef.current
     if (el && pinnedRef.current) el.scrollTop = el.scrollHeight
   }, [conv?.turns, conv?.streamBuffers])
+
+  // The whole UI is built on CSS variables, so a theme is just a palette swap
+  // driven by a data attribute on the root element.
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+  }, [theme])
+
+  const cycleTheme = useCallback(() => {
+    setTheme((t) => {
+      const next = t === 'cowboy' ? 'default' : 'cowboy'
+      void desk.setTheme(next)
+      return next
+    })
+  }, [])
 
   const toggleInspector = useCallback(() => {
     setInspectorOpen((open) => {
@@ -438,6 +455,13 @@ export function App(): React.ReactElement {
           <span className="app-name">Claude Desk</span>
           <button className="cwd-btn" onClick={() => void pickDir()} title="Change working directory">
             {shortCwd}
+          </button>
+          <button
+            className="theme-btn"
+            onClick={cycleTheme}
+            title={theme === 'cowboy' ? 'Switch to the default theme' : 'Switch to the cowboy theme'}
+          >
+            {theme === 'cowboy' ? '🤠' : '◐'}
           </button>
         </div>
         <div className="titlebar-right">

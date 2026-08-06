@@ -10,6 +10,7 @@ interface Prefs {
   lastProfileId?: string | null
   inspectorOpen?: boolean
   sidebarOpen?: boolean
+  theme?: string
   player?: { url?: string; volume?: number }
 }
 

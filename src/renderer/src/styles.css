@@ -754,3 +754,36 @@ kbd {
   font-size: 9px; animation: think-pulse 1.4s ease-in-out infinite;
 }
 .status-elsewhere { color: var(--ok); }
+
+/* ---- cowboy theme ----------------------------------------------------- */
+/* Every surface reads from these variables, so a palette swap is the whole
+   theme. Sun-bleached leather, cream paper, amber at sundown. */
+
+:root[data-theme='cowboy'] {
+  --bg: #17110d;
+  --bg-1: #201811;
+  --bg-2: #2a2018;
+  --bg-3: #3a2c20;
+  --line: #4d3a2b;
+  --text: #f3e6d2;
+  --text-dim: #c6a683;
+  --text-faint: #8d735a;
+  --accent: #e0913b;
+  --ok: #93ad5f;
+  --warn: #e8bb4b;
+  --err: #cc5b3e;
+}
+:root[data-theme='cowboy'] .banner-error { background: #43201a; color: #f0a58f; }
+:root[data-theme='cowboy'] .err-box { background: #43201a; color: #f0a58f; }
+:root[data-theme='cowboy'] .code-block,
+:root[data-theme='cowboy'] .tool-pre,
+:root[data-theme='cowboy'] .perm-subject { background: #140f0b; }
+:root[data-theme='cowboy'] .btn-primary { color: #241708; }
+:root[data-theme='cowboy'] .btn-allow { color: #16210d; }
+:root[data-theme='cowboy'] .perm { background: #2e2411; }
+
+.theme-btn {
+  background: none; border: 1px solid transparent; color: var(--text-dim);
+  border-radius: 6px; padding: 1px 5px; font-size: 12px; line-height: 18px;
+}
+.theme-btn:hover { border-color: var(--line); color: var(--text); }

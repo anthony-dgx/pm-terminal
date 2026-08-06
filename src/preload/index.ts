@@ -55,6 +55,7 @@ export interface DeskApi {
 
   setInspectorOpen(open: boolean): Promise<void>
   setSidebarOpen(open: boolean): Promise<void>
+  setTheme(theme: string): Promise<void>
   playerRead(): Promise<{ url?: string; volume?: number }>
   playerWrite(next: { url?: string; volume?: number }): Promise<void>
 
@@ -69,6 +70,7 @@ export interface DeskApi {
     defaultProfileId: string | null
     inspectorOpen: boolean
     sidebarOpen: boolean
+    theme: string
     claudePath: string | null
   }>
 
@@ -106,6 +108,7 @@ const api: DeskApi = {
 
   setInspectorOpen: (open) => ipcRenderer.invoke('ui:setInspectorOpen', open),
   setSidebarOpen: (open) => ipcRenderer.invoke('ui:setSidebarOpen', open),
+  setTheme: (theme) => ipcRenderer.invoke('ui:setTheme', theme),
   playerRead: () => ipcRenderer.invoke('player:read'),
   playerWrite: (next) => ipcRenderer.invoke('player:write', next),
 

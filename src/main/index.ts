@@ -225,6 +225,7 @@ function registerIpc(): void {
 
   ipcMain.handle('ui:setInspectorOpen', (_e, open: boolean) => writePrefs({ inspectorOpen: open }))
   ipcMain.handle('ui:setSidebarOpen', (_e, open: boolean) => writePrefs({ sidebarOpen: open }))
+  ipcMain.handle('ui:setTheme', (_e, theme: string) => writePrefs({ theme }))
 
   ipcMain.handle('player:read', () => readPlayer())
   ipcMain.handle('player:write', (_e, next: { url?: string; volume?: number }) => writePlayer(next))
@@ -255,6 +256,7 @@ function registerIpc(): void {
     defaultProfileId: (await readPrefs()).lastProfileId ?? null,
     inspectorOpen: (await readPrefs()).inspectorOpen ?? true,
     sidebarOpen: (await readPrefs()).sidebarOpen ?? true,
+    theme: (await readPrefs()).theme ?? 'default',
     claudePath: resolveClaudeExecutable() ?? null,
   }))
 }
