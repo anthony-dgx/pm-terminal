@@ -73,8 +73,8 @@ code, pre { font-family: var(--mono); }
 .body { display: flex; flex: 1; min-height: 0; }
 
 .sidebar {
-  width: 240px; flex-shrink: 0; display: flex; flex-direction: column;
-  background: var(--bg-1); border-right: 1px solid var(--line); min-height: 0;
+  width: 100%; flex: 1; display: flex; flex-direction: column;
+  background: var(--bg-1); min-height: 0; overflow: hidden;
 }
 .sidebar-head { padding: 10px; display: flex; gap: 6px; }
 .sidebar-head .btn-primary { flex: 1; }
@@ -726,17 +726,21 @@ kbd {
 
 /* ---- collapsible sessions panel ---- */
 
-.leftcol { display: flex; flex-direction: column; flex-shrink: 0; min-height: 0; }
+/* The column fixes the width for everything in it. Without this the dock
+   sizes to its own content and spills over the chat pane. */
+.leftcol {
+  width: 240px; flex-shrink: 0; display: flex; flex-direction: column;
+  min-height: 0; overflow: hidden; border-right: 1px solid var(--line);
+}
 .leftcol.is-collapsed { width: 26px; }
-.left-dock { flex-shrink: 0; }
+.left-dock { flex-shrink: 0; width: 100%; overflow: hidden; }
 /* `hidden` keeps the player in the DOM so audio survives a collapse. */
 .left-dock[hidden] { display: none; }
 
 .sidebar-close { padding: 4px 8px; }
 .sidebar-rail {
-  flex: 1; width: 26px; display: flex; flex-direction: column;
+  flex: 1; width: 100%; display: flex; flex-direction: column;
   align-items: center; gap: 9px; padding: 9px 0;
-  background: var(--bg-1); border: none; border-right: 1px solid var(--line);
-  color: var(--text-faint);
+  background: var(--bg-1); border: none; color: var(--text-faint);
 }
 .sidebar-rail:hover { color: var(--text); background: var(--bg-2); }
