@@ -9,6 +9,7 @@ interface Prefs {
   lastModel?: string
   lastProfileId?: string | null
   inspectorOpen?: boolean
+  sidebarOpen?: boolean
   player?: { url?: string; volume?: number }
 }
 

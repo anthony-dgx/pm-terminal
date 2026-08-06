@@ -723,3 +723,20 @@ kbd {
   border: 1px solid var(--line); border-radius: 8px; margin: 6px 0; cursor: zoom-in;
 }
 .turn-image.is-full { max-width: 100%; max-height: none; cursor: zoom-out; }
+
+/* ---- collapsible sessions panel ---- */
+
+.leftcol { display: flex; flex-direction: column; flex-shrink: 0; min-height: 0; }
+.leftcol.is-collapsed { width: 26px; }
+.left-dock { flex-shrink: 0; }
+/* `hidden` keeps the player in the DOM so audio survives a collapse. */
+.left-dock[hidden] { display: none; }
+
+.sidebar-close { padding: 4px 8px; }
+.sidebar-rail {
+  flex: 1; width: 26px; display: flex; flex-direction: column;
+  align-items: center; gap: 9px; padding: 9px 0;
+  background: var(--bg-1); border: none; border-right: 1px solid var(--line);
+  color: var(--text-faint);
+}
+.sidebar-rail:hover { color: var(--text); background: var(--bg-2); }

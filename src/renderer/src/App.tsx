@@ -14,7 +14,8 @@ import { PermissionPrompt } from './components/PermissionPrompt.js'
 import { Sidebar } from './components/Sidebar.js'
 import { TurnView } from './components/TurnView.js'
 import { CopyButton } from './components/Copy.js'
-import type { KroksReaction } from './components/Kroks.js'
+import { Kroks, type KroksReaction } from './components/Kroks.js'
+import { Player } from './components/Player.js'
 import { ModelPicker } from './components/ModelPicker.js'
 import { Composer } from './components/Composer.js'
 import { ProfilePicker } from './components/Profiles.js'
@@ -38,12 +39,14 @@ export function App(): React.ReactElement {
     defaultModel: string | null
     defaultProfileId: string | null
     inspectorOpen: boolean
+    sidebarOpen: boolean
     claudePath: string | null
   } | null>(null)
   const [model, setModel] = useState<string | null>(null)
   const [profileId, setProfileId] = useState<string | null>(null)
   const [profilesKey, setProfilesKey] = useState(0)
   const [inspectorOpen, setInspectorOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [info, setInfo] = useState<SessionInfo | null>(null)
   const [turns, setTurns] = useState<Turn[]>([])
   const [streamBuffers, setStreamBuffers] = useState<Record<string, string>>({})
@@ -76,6 +79,7 @@ export function App(): React.ReactElement {
       setModel(e.defaultModel)
       setProfileId(e.defaultProfileId)
       setInspectorOpen(e.inspectorOpen)
+      setSidebarOpen(e.sidebarOpen)
     })
   }, [])
 
@@ -149,18 +153,30 @@ export function App(): React.ReactElement {
     })
   }, [])
 
-  // Cmd/Ctrl+I mirrors the chevron, so the panel can be dismissed without
-  // reaching for it.
+  const toggleSidebar = useCallback(() => {
+    setSidebarOpen((open) => {
+      const next = !open
+      void desk.setSidebarOpen(next)
+      return next
+    })
+  }, [])
+
+  // Cmd/Ctrl+B for sessions, Cmd/Ctrl+I for the inspector.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 'i') {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return
+      const k = e.key.toLowerCase()
+      if (k === 'i') {
         e.preventDefault()
         toggleInspector()
+      } else if (k === 'b') {
+        e.preventDefault()
+        toggleSidebar()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggleInspector])
+  }, [toggleInspector, toggleSidebar])
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current
@@ -341,20 +357,38 @@ export function App(): React.ReactElement {
       )}
 
       <div className="body">
-        <Sidebar
-          home={env.home}
-          activeSessionId={mode.kind === 'archive' ? mode.entry.sessionId : info?.sessionId ?? null}
-          onOpen={(e) => void openArchive(e)}
-          onResume={(e) => void resumeSession(e)}
-          onNew={newSession}
-          activityKey={inspectorKey}
-          onNewInGroup={(gProfileId) => {
-            newSession()
-            setProfileId(gProfileId ?? null)
-          }}
-          kroksReaction={kroks}
-          kroksWorking={info?.status === 'running' && turns.some((t) => t.streaming === true)}
-        />
+        <div className={`leftcol ${sidebarOpen ? '' : 'is-collapsed'}`}>
+          {sidebarOpen ? (
+            <Sidebar
+              home={env.home}
+              activeSessionId={mode.kind === 'archive' ? mode.entry.sessionId : info?.sessionId ?? null}
+              onOpen={(e) => void openArchive(e)}
+              onResume={(e) => void resumeSession(e)}
+              onNew={newSession}
+              activityKey={inspectorKey}
+              onNewInGroup={(gProfileId) => {
+                newSession()
+                setProfileId(gProfileId ?? null)
+              }}
+              onClose={toggleSidebar}
+            />
+          ) : (
+            <button className="sidebar-rail" onClick={toggleSidebar} title="Show sessions (Cmd+B)">
+              <span className="inspector-rail-caret">›</span>
+              <span className="inspector-rail-label">Sessions</span>
+            </button>
+          )}
+
+          {/* Kept mounted while collapsed: unmounting the player would tear
+              down the YouTube iframe and stop the music. */}
+          <div className="left-dock" hidden={!sidebarOpen}>
+            <Player />
+            <Kroks
+              reaction={kroks}
+              working={info?.status === 'running' && turns.some((t) => t.streaming === true)}
+            />
+          </div>
+        </div>
 
         <main className="chat">
           <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>

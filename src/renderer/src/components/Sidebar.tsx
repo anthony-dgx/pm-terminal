@@ -7,8 +7,7 @@ import {
   type SessionGroup,
 } from '../../../shared/types.js'
 import { desk } from '../lib/api.js'
-import { Kroks, type KroksReaction } from './Kroks.js'
-import { Player } from './Player.js'
+
 
 function relativeTime(ms: number): string {
   const diff = Date.now() - ms
@@ -349,8 +348,7 @@ interface Props {
   onNewInGroup: (profileId: string | null | undefined) => void
   /** Bumped when a session starts or finishes a turn, to refresh the list. */
   activityKey: number
-  kroksReaction: KroksReaction
-  kroksWorking: boolean
+  onClose: () => void
 }
 
 export function Sidebar({
@@ -361,8 +359,7 @@ export function Sidebar({
   onNew,
   onNewInGroup,
   activityKey,
-  kroksReaction,
-  kroksWorking,
+  onClose,
 }: Props): React.ReactElement {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [groups, setGroups] = useState<SessionGroup[]>([])
@@ -579,6 +576,9 @@ export function Sidebar({
         >
           {refreshing ? '·' : '↻'}
         </button>
+        <button className="btn sidebar-close" onClick={onClose} title="Hide sessions (Cmd+B)">
+          ‹
+        </button>
       </div>
       <input
         className="filter"
@@ -672,8 +672,6 @@ export function Sidebar({
         </div>
       </div>
 
-      <Player />
-      <Kroks reaction={kroksReaction} working={kroksWorking} />
     </aside>
   )
 }
