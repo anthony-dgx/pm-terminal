@@ -354,6 +354,8 @@ interface Props {
   onClose: () => void
   /** Sessions with work in flight, marked so they are visible while hidden. */
   busySessionIds: string[]
+  /** Incremented by the host (Cmd+G) to create a group. */
+  newGroupSignal: number
 }
 
 export function Sidebar({
@@ -366,6 +368,7 @@ export function Sidebar({
   activityKey,
   onClose,
   busySessionIds,
+  newGroupSignal,
 }: Props): React.ReactElement {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [groups, setGroups] = useState<SessionGroup[]>([])
@@ -461,6 +464,18 @@ export function Sidebar({
       },
     ])
   }, [groups, persist])
+
+  // Held in a ref so the signal effect does not re-fire when groups change.
+  const newGroupRef = useRef<() => void>(() => undefined)
+  newGroupRef.current = newGroup
+  const firstGroupSignal = useRef(true)
+  useEffect(() => {
+    if (firstGroupSignal.current) {
+      firstGroupSignal.current = false
+      return
+    }
+    newGroupRef.current()
+  }, [newGroupSignal])
 
   const patch = useCallback(
     (id: string, fn: (g: SessionGroup) => SessionGroup) =>
@@ -569,10 +584,10 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <button className="btn btn-primary sidebar-new" onClick={onNew} title="New session">
+        <button className="btn btn-primary sidebar-new" onClick={onNew} title="New session (Cmd+T)">
           +
         </button>
-        <button className="btn" onClick={newGroup} title="Create a session group">
+        <button className="btn" onClick={newGroup} title="Create a session group (Cmd+G)">
           + Group
         </button>
         <button

@@ -95,6 +95,8 @@ export function App(): React.ReactElement {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [notices, setNotices] = useState<{ level: string; text: string }[]>([])
   const [inspectorKey, setInspectorKey] = useState(0)
+  // Bumped to ask the sidebar to create a group; it owns the group state.
+  const [newGroupSignal, setNewGroupSignal] = useState(0)
   const [kroks, setKroks] = useState<KroksReaction>(null)
   const kroksSeq = useRef(0)
   const poke = useCallback((kind: 'meow' | 'perk') => {
@@ -103,6 +105,7 @@ export function App(): React.ReactElement {
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const pinnedRef = useRef(true)
+  const newConversationRef = useRef<(profileId?: string | null) => void>(() => undefined)
 
   /** Update one conversation without touching any other. */
   const patch = useCallback((id: string, fn: (c: Conversation) => Conversation) => {
@@ -211,13 +214,30 @@ export function App(): React.ReactElement {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return
-      const k = e.key.toLowerCase()
-      if (k === 'i') {
-        e.preventDefault()
-        toggleInspector()
-      } else if (k === 'b') {
-        e.preventDefault()
-        toggleSidebar()
+      switch (e.key.toLowerCase()) {
+        case 'i':
+          e.preventDefault()
+          toggleInspector()
+          break
+        case 'b':
+          e.preventDefault()
+          toggleSidebar()
+          break
+        case 't':
+          e.preventDefault()
+          // Via a ref: the handler is installed before newConversation exists.
+          newConversationRef.current()
+          break
+        case 'g':
+          e.preventDefault()
+          // A group created into a hidden sidebar would be invisible, so
+          // reveal it first.
+          setSidebarOpen((open) => {
+            if (!open) void desk.setSidebarOpen(true)
+            return true
+          })
+          setNewGroupSignal((n) => n + 1)
+          break
       }
     }
     window.addEventListener('keydown', onKey)
@@ -359,6 +379,8 @@ export function App(): React.ReactElement {
     [env, conversations, activeId],
   )
 
+  newConversationRef.current = newConversation
+
   const pickDir = useCallback(async () => {
     const dir = await desk.pickDir()
     if (dir) patch(activeId, (c) => ({ ...c, cwd: dir }))
@@ -470,6 +492,7 @@ export function App(): React.ReactElement {
               activityKey={inspectorKey}
               onNewInGroup={(gProfileId) => newConversation(gProfileId ?? null)}
               onClose={toggleSidebar}
+              newGroupSignal={newGroupSignal}
             />
           ) : (
             <button className="sidebar-rail" onClick={toggleSidebar} title="Show sessions (Cmd+B)">
