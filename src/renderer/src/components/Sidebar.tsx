@@ -562,8 +562,8 @@ export function Sidebar({
   return (
     <aside className="sidebar">
       <div className="sidebar-head">
-        <button className="btn btn-primary" onClick={onNew}>
-          New session
+        <button className="btn btn-primary sidebar-new" onClick={onNew} title="New session">
+          +
         </button>
         <button className="btn" onClick={newGroup} title="Create a session group">
           + Group

@@ -76,8 +76,11 @@ code, pre { font-family: var(--mono); }
   width: 100%; flex: 1; display: flex; flex-direction: column;
   background: var(--bg-1); min-height: 0; overflow: hidden;
 }
-.sidebar-head { padding: 10px; display: flex; gap: 6px; }
-.sidebar-head .btn-primary { flex: 1; }
+.sidebar-head { padding: 10px; display: flex; gap: 6px; align-items: center; }
+/* A square + rather than a wide button, so the row fits new session, group,
+   refresh and collapse without crowding. */
+.sidebar-new { padding: 3px 10px; font-size: 16px; line-height: 20px; }
+.sidebar-head .btn:nth-child(2) { margin-right: auto; }
 .sidebar-list { flex: 1; overflow-y: auto; padding: 0 6px 10px; }
 
 .hist {
