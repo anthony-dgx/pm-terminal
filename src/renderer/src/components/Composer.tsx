@@ -38,6 +38,7 @@ function activeQuery(text: string, caret: number): string | null {
 }
 
 interface Props {
+  clientId: string
   value: string
   onChange: (v: string) => void
   onSubmit: (images: Attachment[]) => void
@@ -52,6 +53,7 @@ interface Props {
 }
 
 export function Composer({
+  clientId,
   value,
   onChange,
   onSubmit,
@@ -74,8 +76,8 @@ export function Composer({
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    void desk.skills().then(setSkills)
-  }, [skillsKey])
+    void desk.skills(clientId).then(setSkills)
+  }, [skillsKey, clientId])
 
   const matches = useMemo(() => (query === null ? [] : rank(skills, query)), [skills, query])
   // Cap what is rendered, but never lie about how many matched.

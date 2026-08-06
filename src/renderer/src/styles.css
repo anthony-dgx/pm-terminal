@@ -747,3 +747,10 @@ kbd {
   background: var(--bg-1); border: none; color: var(--text-faint);
 }
 .sidebar-rail:hover { color: var(--text); background: var(--bg-2); }
+
+/* A session working while you are looking at another one. */
+.hist-busy {
+  color: var(--ok); text-transform: uppercase; letter-spacing: 0.05em;
+  font-size: 9px; animation: think-pulse 1.4s ease-in-out infinite;
+}
+.status-elsewhere { color: var(--ok); }

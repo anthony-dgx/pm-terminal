@@ -21,7 +21,51 @@ import { Composer } from './components/Composer.js'
 import { ProfilePicker } from './components/Profiles.js'
 import { Thinking, phaseOf } from './components/Thinking.js'
 
-type Mode = { kind: 'live' } | { kind: 'archive'; entry: HistoryEntry }
+/**
+ * One conversation on screen. Several can exist at once and each keeps its own
+ * transcript, prompts, and in-flight state, so an agent working in one is never
+ * rendered into another and switching away does not disturb it.
+ */
+interface Conversation {
+  /** Stable key. Also the id the main process files events under. */
+  id: string
+  /** Claude's own session id, once the CLI reports it. */
+  sessionId: string | null
+  /** Set when opened from history, for the banner and for continuing it. */
+  entry: HistoryEntry | null
+  /** True once a prompt has been sent and a real agent session exists. */
+  started: boolean
+  turns: Turn[]
+  streamBuffers: Record<string, string>
+  permissions: PermissionRequest[]
+  info: SessionInfo | null
+  awaiting: boolean
+  awaitSince: number
+  input: string
+  cwd: string
+  model: string | null
+  profileId: string | null
+}
+
+function blankConversation(over: Partial<Conversation> = {}): Conversation {
+  return {
+    id: crypto.randomUUID(),
+    sessionId: null,
+    entry: null,
+    started: false,
+    turns: [],
+    streamBuffers: {},
+    permissions: [],
+    info: null,
+    awaiting: false,
+    awaitSince: 0,
+    input: '',
+    cwd: '',
+    model: null,
+    profileId: null,
+    ...over,
+  }
+}
 
 /** The model a recorded session last ran on, from its assistant turns. */
 function modelOfTurns(turns: Turn[]): string | null {
@@ -42,27 +86,15 @@ export function App(): React.ReactElement {
     sidebarOpen: boolean
     claudePath: string | null
   } | null>(null)
-  const [model, setModel] = useState<string | null>(null)
-  const [profileId, setProfileId] = useState<string | null>(null)
+
+  const [conversations, setConversations] = useState<Record<string, Conversation>>({})
+  const [activeId, setActiveId] = useState<string>('')
+
   const [profilesKey, setProfilesKey] = useState(0)
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [info, setInfo] = useState<SessionInfo | null>(null)
-  const [turns, setTurns] = useState<Turn[]>([])
-  const [streamBuffers, setStreamBuffers] = useState<Record<string, string>>({})
-  const [permissions, setPermissions] = useState<PermissionRequest[]>([])
   const [notices, setNotices] = useState<{ level: string; text: string }[]>([])
-  const [input, setInput] = useState('')
-  const [mode, setMode] = useState<Mode>({ kind: 'live' })
-  const [cwd, setCwd] = useState('')
   const [inspectorKey, setInspectorKey] = useState(0)
-  const [busy, setBusy] = useState(false)
-  // True from pressing enter until the reply completes, so the indicator covers
-  // the dead air before the first token as well as the streaming itself.
-  const [awaiting, setAwaiting] = useState(false)
-  const [awaitSince, setAwaitSince] = useState(0)
-  // Kroks reacts to what the agent is doing: a chirp when you send, a meow when
-  // a turn lands or permission is needed, fast tail while a turn is in flight.
   const [kroks, setKroks] = useState<KroksReaction>(null)
   const kroksSeq = useRef(0)
   const poke = useCallback((kind: 'meow' | 'perk') => {
@@ -72,78 +104,93 @@ export function App(): React.ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null)
   const pinnedRef = useRef(true)
 
-  useEffect(() => {
-    void desk.env().then((e) => {
-      setEnv(e)
-      setCwd(e.defaultCwd)
-      setModel(e.defaultModel)
-      setProfileId(e.defaultProfileId)
-      setInspectorOpen(e.inspectorOpen)
-      setSidebarOpen(e.sidebarOpen)
+  /** Update one conversation without touching any other. */
+  const patch = useCallback((id: string, fn: (c: Conversation) => Conversation) => {
+    setConversations((prev) => {
+      const c = prev[id]
+      if (!c) return prev
+      return { ...prev, [id]: fn(c) }
     })
   }, [])
 
-  // ---- main-process event stream ----------------------------------------
+  useEffect(() => {
+    void desk.env().then((e) => {
+      setEnv(e)
+      setInspectorOpen(e.inspectorOpen)
+      setSidebarOpen(e.sidebarOpen)
+      const first = blankConversation({
+        cwd: e.defaultCwd,
+        model: e.defaultModel,
+        profileId: e.defaultProfileId,
+      })
+      setConversations({ [first.id]: first })
+      setActiveId(first.id)
+    })
+  }, [])
+
+  // ---- main-process event stream -----------------------------------------
+  // Every event carries the conversation it belongs to. Events for a
+  // conversation that is not on screen still update its stored state, so
+  // switching back shows everything that happened while it was hidden.
 
   useEffect(() => {
-    return desk.onEvent((e: MainEvent) => {
+    return desk.onEvent((clientId: string, e: MainEvent) => {
+      const isActive = (): boolean => clientId === activeIdRef.current
+
       switch (e.type) {
         case 'turn': {
-          setTurns((prev) => {
-            const i = prev.findIndex((t) => t.id === e.turn.id)
-            if (i === -1) return [...prev, e.turn]
-            const next = [...prev]
-            next[i] = e.turn
-            return next
+          patch(clientId, (c) => {
+            const i = c.turns.findIndex((t) => t.id === e.turn.id)
+            const turns = i === -1 ? [...c.turns, e.turn] : c.turns.map((t, j) => (j === i ? e.turn : t))
+            const streamBuffers = { ...c.streamBuffers }
+            delete streamBuffers[e.turn.id]
+            const done = e.turn.role === 'assistant' && e.turn.streaming === false
+            return { ...c, turns, streamBuffers, awaiting: done ? false : c.awaiting }
           })
-          // A turn that just stopped streaming is a finished reply: meow.
-          if (e.turn.role === 'assistant' && e.turn.streaming === false) {
-            poke('meow')
-            setAwaiting(false)
-          }
-          // Authoritative blocks arrived and already contain everything streamed
-          // so far, so drop the draft. Later deltas refill it for the next
-          // assistant message in the same turn.
-          setStreamBuffers((prev) => {
-            if (!(e.turn.id in prev)) return prev
-            const next = { ...prev }
-            delete next[e.turn.id]
-            return next
-          })
+          if (e.turn.role === 'assistant' && e.turn.streaming === false && isActive()) poke('meow')
           break
         }
         case 'turn-delta':
-          setStreamBuffers((prev) => ({ ...prev, [e.turnId]: (prev[e.turnId] ?? '') + e.text }))
+          patch(clientId, (c) => ({
+            ...c,
+            streamBuffers: { ...c.streamBuffers, [e.turnId]: (c.streamBuffers[e.turnId] ?? '') + e.text },
+          }))
           break
         case 'session':
-          setInfo(e.info)
-          setBusy(e.info.status === 'starting')
-          // Never leave the indicator spinning after a dead session.
-          if (e.info.status === 'error' || e.info.status === 'closed') setAwaiting(false)
+          patch(clientId, (c) => ({
+            ...c,
+            info: e.info,
+            sessionId: e.info.sessionId ?? c.sessionId,
+            awaiting: e.info.status === 'error' || e.info.status === 'closed' ? false : c.awaiting,
+          }))
           break
         case 'permission':
-          setPermissions((prev) => [...prev, e.request])
+          patch(clientId, (c) => ({ ...c, permissions: [...c.permissions, e.request] }))
           poke('meow')
           break
         case 'permission-resolved':
-          setPermissions((prev) => prev.filter((p) => p.id !== e.id))
+          patch(clientId, (c) => ({ ...c, permissions: c.permissions.filter((p) => p.id !== e.id) }))
           break
         case 'inspector-dirty':
-          setInspectorKey((k) => k + 1)
+          if (isActive()) setInspectorKey((k) => k + 1)
           break
         case 'notice':
           setNotices((prev) => [...prev.slice(-4), { level: e.level, text: e.text }])
           break
       }
     })
-  }, [poke])
+  }, [patch, poke])
 
-  // ---- autoscroll, but only while the user is already at the bottom ------
+  // The event handler is registered once, so it reads the active id from a ref.
+  const activeIdRef = useRef('')
+  activeIdRef.current = activeId
+
+  const conv = conversations[activeId]
 
   useEffect(() => {
     const el = scrollRef.current
     if (el && pinnedRef.current) el.scrollTop = el.scrollHeight
-  }, [turns, streamBuffers])
+  }, [conv?.turns, conv?.streamBuffers])
 
   const toggleInspector = useCallback(() => {
     setInspectorOpen((open) => {
@@ -161,7 +208,6 @@ export function App(): React.ReactElement {
     })
   }, [])
 
-  // Cmd/Ctrl+B for sessions, Cmd/Ctrl+I for the inspector.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return
@@ -186,118 +232,155 @@ export function App(): React.ReactElement {
 
   // ---- actions -----------------------------------------------------------
 
-  const ensureSession = useCallback(
-    async (resume?: string, sessionCwd?: string, overrideProfileId?: string | null) => {
-      const started = await desk.startSession({
-        cwd: sessionCwd ?? cwd,
-        resume,
-        model: model ?? undefined,
-        // Explicit override wins, else the group's default, else the last used.
-        profileId: overrideProfileId !== undefined ? overrideProfileId : profileId,
-      })
-      setInfo(started)
-      return started
-    },
-    [cwd, model, profileId],
-  )
-
   const submit = useCallback(
     async (images: Attachment[] = []) => {
-    const text = input.trim()
-    if ((!text && !images.length) || busy) return
-    setInput('')
-    if (mode.kind === 'archive') {
-      // Typing into an opened session continues it. The transcript stays on
-      // screen: clearing it here used to make the history vanish mid-send.
-      await ensureSession(mode.entry.sessionId, mode.entry.cwd)
-      setMode({ kind: 'live' })
-    } else if (!info || info.status === 'closed' || info.status === 'error') {
-      await ensureSession()
-    }
-    poke('perk')
-    setAwaitSince(Date.now())
-    setAwaiting(true)
-    await desk.send(text, images)
+      const c = conversations[activeId]
+      if (!c) return
+      const text = c.input.trim()
+      if ((!text && !images.length) || c.info?.status === 'starting') return
+
+      patch(c.id, (x) => ({ ...x, input: '', awaiting: true, awaitSince: Date.now(), started: true }))
+
+      // Start the agent on first send, or after it died. Resume when this
+      // conversation came from an existing transcript.
+      const needsStart = !c.started || c.info?.status === 'closed' || c.info?.status === 'error'
+      if (needsStart) {
+        const started = await desk.startSession(c.id, {
+          cwd: c.cwd,
+          resume: c.entry?.sessionId,
+          model: c.model ?? undefined,
+          profileId: c.profileId,
+        })
+        patch(c.id, (x) => ({ ...x, info: started }))
+      }
+      poke('perk')
+      await desk.send(c.id, text, images)
     },
-    [input, busy, mode, info, ensureSession, poke],
+    [conversations, activeId, patch, poke],
   )
 
-  const changeModel = useCallback((next: string) => {
-    setModel(next)
-    // Applies to the live session immediately; otherwise it is remembered for
-    // the next one. Either way the choice persists across restarts.
-    void desk.setModel(next).then((updated) => {
-      if (updated) setInfo(updated)
-    })
-  }, [])
+  const changeModel = useCallback(
+    (next: string) => {
+      patch(activeId, (c) => ({ ...c, model: next }))
+      void desk.setModel(activeId, next).then((updated) => {
+        if (updated) patch(activeId, (c) => ({ ...c, info: updated }))
+      })
+    },
+    [activeId, patch],
+  )
 
   const stop = useCallback(() => {
-    void desk.interrupt()
-    setAwaiting(false)
-  }, [])
+    void desk.interrupt(activeId)
+    patch(activeId, (c) => ({ ...c, awaiting: false }))
+  }, [activeId, patch])
 
-  const answerPermission = useCallback((id: string, answer: PermissionAnswer) => {
-    void desk.answerPermission(id, answer)
-  }, [])
-
-  const openArchive = useCallback(async (entry: HistoryEntry) => {
-    const t = await desk.historyRead(entry.projectSlug, entry.sessionId)
-    setTurns(t)
-    setStreamBuffers({})
-    setAwaiting(false)
-    setCwd(entry.cwd)
-    // Continuing should stay on the model the session was already using.
-    const was = modelOfTurns(t)
-    if (was) setModel(was)
-    setMode({ kind: 'archive', entry })
-  }, [])
-
-  const resumeSession = useCallback(
-    async (entry: HistoryEntry) => {
-      const t = await desk.historyRead(entry.projectSlug, entry.sessionId)
-      setTurns(t)
-      setStreamBuffers({})
-      setCwd(entry.cwd)
-      const was = modelOfTurns(t)
-      if (was) setModel(was)
-      setMode({ kind: 'live' })
-      await ensureSession(entry.sessionId, entry.cwd)
-      setInspectorKey((k) => k + 1)
+  const answerPermission = useCallback(
+    (id: string, answer: PermissionAnswer) => {
+      void desk.answerPermission(activeId, id, answer)
     },
-    [ensureSession],
+    [activeId],
   )
 
-  const newSession = useCallback(() => {
-    setAwaiting(false)
-    setTurns([])
-    setStreamBuffers({})
-    setPermissions([])
-    setMode({ kind: 'live' })
-    setInfo(null)
-  }, [])
+  /**
+   * Show a recorded session. If it is already open in a conversation, switch to
+   * that one rather than loading a second copy, so a running agent is never
+   * orphaned behind a fresh view of the same transcript.
+   */
+  const openEntry = useCallback(
+    async (entry: HistoryEntry) => {
+      const existing = Object.values(conversations).find(
+        (c) => c.entry?.sessionId === entry.sessionId || c.sessionId === entry.sessionId,
+      )
+      if (existing) {
+        setActiveId(existing.id)
+        return
+      }
+      const t = await desk.historyRead(entry.projectSlug, entry.sessionId)
+      const next = blankConversation({
+        entry,
+        sessionId: entry.sessionId,
+        turns: t,
+        cwd: entry.cwd,
+        model: modelOfTurns(t) ?? env?.defaultModel ?? null,
+        profileId: env?.defaultProfileId ?? null,
+      })
+      setConversations((prev) => ({ ...prev, [next.id]: next }))
+      setActiveId(next.id)
+    },
+    [conversations, env],
+  )
+
+  /** Open it and start the agent immediately, without waiting for a prompt. */
+  const resumeEntry = useCallback(
+    async (entry: HistoryEntry) => {
+      const existing = Object.values(conversations).find(
+        (c) => c.entry?.sessionId === entry.sessionId || c.sessionId === entry.sessionId,
+      )
+      const id = existing?.id ?? crypto.randomUUID()
+      if (!existing) {
+        const t = await desk.historyRead(entry.projectSlug, entry.sessionId)
+        setConversations((prev) => ({
+          ...prev,
+          [id]: blankConversation({
+            id,
+            entry,
+            sessionId: entry.sessionId,
+            turns: t,
+            cwd: entry.cwd,
+            model: modelOfTurns(t) ?? env?.defaultModel ?? null,
+            profileId: env?.defaultProfileId ?? null,
+          }),
+        }))
+      }
+      setActiveId(id)
+      const started = await desk.startSession(id, {
+        cwd: entry.cwd,
+        resume: entry.sessionId,
+        model: existing?.model ?? undefined,
+        profileId: existing?.profileId ?? env?.defaultProfileId ?? null,
+      })
+      patch(id, (c) => ({ ...c, info: started, started: true }))
+      setInspectorKey((k) => k + 1)
+    },
+    [conversations, env, patch],
+  )
+
+  const newConversation = useCallback(
+    (profileId?: string | null) => {
+      if (!env) return
+      const next = blankConversation({
+        cwd: conversations[activeId]?.cwd || env.defaultCwd,
+        model: env.defaultModel,
+        profileId: profileId !== undefined ? profileId : env.defaultProfileId,
+      })
+      setConversations((prev) => ({ ...prev, [next.id]: next }))
+      setActiveId(next.id)
+    },
+    [env, conversations, activeId],
+  )
 
   const pickDir = useCallback(async () => {
     const dir = await desk.pickDir()
-    if (dir) {
-      setCwd(dir)
-      newSession()
-    }
-  }, [newSession])
+    if (dir) patch(activeId, (c) => ({ ...c, cwd: dir }))
+  }, [activeId, patch])
 
-  // Everything you typed in this session, oldest first, including prompts
-  // rehydrated from a resumed transcript.
   const userPrompts = useMemo(
     () =>
-      turns
+      (conv?.turns ?? [])
         .filter((t) => t.role === 'user')
-        .map((t) => t.blocks.filter((b) => b.kind === 'text').map((b) => (b.kind === 'text' ? b.text : '')).join('\n'))
+        .map((t) =>
+          t.blocks
+            .filter((b) => b.kind === 'text')
+            .map((b) => (b.kind === 'text' ? b.text : ''))
+            .join('\n'),
+        )
         .filter((t) => t.trim().length > 0),
-    [turns],
+    [conv?.turns],
   )
 
   const copyConversation = useCallback(
     () =>
-      turns
+      (conv?.turns ?? [])
         .map((t) => {
           const body = t.blocks
             .filter((b) => b.kind === 'text')
@@ -306,13 +389,25 @@ export function App(): React.ReactElement {
           return `## ${t.role === 'user' ? 'You' : 'Claude'}\n\n${body}`
         })
         .join('\n\n'),
-    [turns],
+    [conv?.turns],
   )
 
-  if (!env) return <div className="boot">Loading...</div>
+  /** Session ids with work in flight, so the sidebar can mark them. */
+  const busySessionIds = useMemo(
+    () =>
+      Object.values(conversations)
+        .filter((c) => c.awaiting)
+        .map((c) => c.sessionId ?? c.entry?.sessionId ?? '')
+        .filter(Boolean),
+    [conversations],
+  )
 
-  const shortCwd = cwd.startsWith(env.home) ? `~${cwd.slice(env.home.length)}` : cwd
-  const statusLabel = mode.kind === 'archive' ? 'opened' : (info?.status ?? 'idle')
+  if (!env || !conv) return <div className="boot">Loading...</div>
+
+  const shortCwd = conv.cwd.startsWith(env.home) ? `~${conv.cwd.slice(env.home.length)}` : conv.cwd
+  const viewingArchive = Boolean(conv.entry) && !conv.started
+  const statusLabel = viewingArchive ? 'opened' : (conv.info?.status ?? 'idle')
+  const otherBusy = Object.values(conversations).filter((c) => c.awaiting && c.id !== activeId).length
 
   return (
     <div className="app">
@@ -324,19 +419,25 @@ export function App(): React.ReactElement {
           </button>
         </div>
         <div className="titlebar-right">
+          {otherBusy > 0 && (
+            <span className="status status-elsewhere" title="Other sessions are still working">
+              {otherBusy} running elsewhere
+            </span>
+          )}
           <span className={`status status-${statusLabel}`}>{statusLabel}</span>
           <ProfilePicker
-            current={profileId}
+            current={conv.profileId}
             refreshKey={profilesKey}
-            onChange={(id) => setProfileId(id)}
+            onChange={(id) => patch(activeId, (c) => ({ ...c, profileId: id }))}
           />
           <ModelPicker
-            current={info?.model ?? model}
-            live={info?.status === 'running'}
+            clientId={activeId}
+            current={conv.info?.model ?? conv.model}
+            live={conv.info?.status === 'running'}
             onChange={changeModel}
           />
           <CopyButton text={copyConversation} label="Copy conversation" />
-          {awaiting && (
+          {conv.awaiting && (
             <button className="btn btn-deny" onClick={stop}>
               Stop
             </button>
@@ -349,10 +450,10 @@ export function App(): React.ReactElement {
           Could not find the <code>claude</code> binary. Set <code>CLAUDE_DESK_CLI_PATH</code> and restart.
         </div>
       )}
-      {info?.error && <div className="banner banner-error">{info.error}</div>}
-      {mode.kind === 'archive' && (
+      {conv.info?.error && <div className="banner banner-error">{conv.info.error}</div>}
+      {viewingArchive && conv.entry && (
         <div className="banner">
-          Viewing <strong>{mode.entry.title}</strong>. Type below to continue this session.
+          Viewing <strong>{conv.entry.title}</strong>. Type below to continue this session.
         </div>
       )}
 
@@ -361,15 +462,13 @@ export function App(): React.ReactElement {
           {sidebarOpen ? (
             <Sidebar
               home={env.home}
-              activeSessionId={mode.kind === 'archive' ? mode.entry.sessionId : info?.sessionId ?? null}
-              onOpen={(e) => void openArchive(e)}
-              onResume={(e) => void resumeSession(e)}
-              onNew={newSession}
+              activeSessionId={conv.sessionId ?? conv.entry?.sessionId ?? null}
+              busySessionIds={busySessionIds}
+              onOpen={(e) => void openEntry(e)}
+              onResume={(e) => void resumeEntry(e)}
+              onNew={() => newConversation()}
               activityKey={inspectorKey}
-              onNewInGroup={(gProfileId) => {
-                newSession()
-                setProfileId(gProfileId ?? null)
-              }}
+              onNewInGroup={(gProfileId) => newConversation(gProfileId ?? null)}
               onClose={toggleSidebar}
             />
           ) : (
@@ -383,16 +482,13 @@ export function App(): React.ReactElement {
               down the YouTube iframe and stop the music. */}
           <div className="left-dock" hidden={!sidebarOpen}>
             <Player />
-            <Kroks
-              reaction={kroks}
-              working={info?.status === 'running' && turns.some((t) => t.streaming === true)}
-            />
+            <Kroks reaction={kroks} working={conv.awaiting} />
           </div>
         </div>
 
         <main className="chat">
           <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
-            {!turns.length && (
+            {!conv.turns.length && (
               <div className="empty">
                 <h2>New session</h2>
                 <p>
@@ -403,25 +499,25 @@ export function App(): React.ReactElement {
                 </p>
               </div>
             )}
-            {turns.map((t) => (
-              <TurnView key={t.id} turn={t} streamBuffer={streamBuffers[t.id]} />
+            {conv.turns.map((t) => (
+              <TurnView key={t.id} turn={t} streamBuffer={conv.streamBuffers[t.id]} />
             ))}
-            {awaiting && !permissions.length && (
+            {conv.awaiting && !conv.permissions.length && (
               <Thinking
                 phase={phaseOf(
-                  turns,
-                  info?.status === 'starting',
-                  Object.values(streamBuffers).some((v) => v.length > 0),
+                  conv.turns,
+                  conv.info?.status === 'starting',
+                  Object.values(conv.streamBuffers).some((v) => v.length > 0),
                 )}
-                since={awaitSince}
+                since={conv.awaitSince}
                 onStop={stop}
               />
             )}
           </div>
 
-          {permissions.length > 0 && (
+          {conv.permissions.length > 0 && (
             <div className="perm-stack">
-              {permissions.map((p) => (
+              {conv.permissions.map((p) => (
                 <PermissionPrompt key={p.id} request={p} onAnswer={(a) => answerPermission(p.id, a)} />
               ))}
             </div>
@@ -441,21 +537,21 @@ export function App(): React.ReactElement {
           )}
 
           <Composer
-            value={input}
-            onChange={setInput}
+            clientId={activeId}
+            value={conv.input}
+            onChange={(v) => patch(activeId, (c) => ({ ...c, input: v }))}
             onSubmit={(images) => void submit(images)}
-            placeholder={
-              mode.kind === 'archive' ? 'Continue this session...' : 'Message Claude...'
-            }
-            disabled={busy}
+            placeholder={viewingArchive ? 'Continue this session...' : 'Message Claude...'}
+            disabled={conv.info?.status === 'starting'}
             skillsKey={inspectorKey}
-            working={awaiting}
+            working={conv.awaiting}
             history={userPrompts}
           />
         </main>
 
         {inspectorOpen ? (
           <Inspector
+            clientId={activeId}
             refreshKey={inspectorKey}
             profilesKey={profilesKey}
             onProfilesChanged={() => setProfilesKey((k) => k + 1)}

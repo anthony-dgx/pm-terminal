@@ -28,9 +28,11 @@ const STATUS_SECTIONS: { key: McpStatus; label: string }[] = [
 function McpPanel({
   servers,
   onServers,
+  clientId,
 }: {
   servers: McpServerView[]
   onServers: (next: McpServerView[]) => void
+  clientId: string
 }): React.ReactElement {
   const [busy, setBusy] = useState<string | null>(null)
   const [failed, setFailed] = useState<Record<string, string>>({})
@@ -42,7 +44,7 @@ function McpPanel({
       return rest
     })
     try {
-      const next = await desk.reconnectMcp(name)
+      const next = await desk.reconnectMcp(clientId, name)
       if (next.length) onServers(next)
     } catch (err) {
       setFailed((f) => ({ ...f, [name]: err instanceof Error ? err.message : String(err) }))
@@ -476,10 +478,12 @@ function UsagePanel({
 
 export function Inspector({
   refreshKey,
+  clientId,
   profilesKey,
   onProfilesChanged,
   onClose,
 }: {
+  clientId: string
   refreshKey: number
   profilesKey: number
   onProfilesChanged: () => void
@@ -496,12 +500,12 @@ export function Inspector({
 
   const refresh = useCallback(async () => {
     const [m, s, a, p, u, c] = await Promise.all([
-      desk.mcp(),
-      desk.skills(),
-      desk.agents(),
+      desk.mcp(clientId),
+      desk.skills(clientId),
+      desk.agents(clientId),
       desk.plugins(),
-      desk.usage(),
-      desk.contextUsage(),
+      desk.usage(clientId),
+      desk.contextUsage(clientId),
     ])
     setMcp(m)
     setSkills(s)
@@ -509,7 +513,7 @@ export function Inspector({
     setPlugins(p)
     setUsage(u)
     setContext(c)
-  }, [])
+  }, [clientId])
 
   useEffect(() => {
     void refresh()
@@ -568,7 +572,7 @@ export function Inspector({
       )}
 
       <div className="inspector-body">
-        {tab === 'mcp' && <McpPanel servers={mcp} onServers={setMcp} />}
+        {tab === 'mcp' && <McpPanel servers={mcp} onServers={setMcp} clientId={clientId} />}
         {tab === 'skills' && loadedView === 'skills' && <SkillsPanel skills={skills} />}
         {tab === 'skills' && loadedView === 'agents' && <AgentsPanel agents={agents} />}
         {tab === 'skills' && loadedView === 'plugins' && <PluginsPanel plugins={plugins} />}

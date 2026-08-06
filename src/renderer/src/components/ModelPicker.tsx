@@ -3,6 +3,7 @@ import type { ModelOption } from '../../../shared/types.js'
 import { desk } from '../lib/api.js'
 
 interface Props {
+  clientId: string
   current: string | null
   /** Models are only listable from a running session; falls back to aliases. */
   live: boolean
@@ -26,7 +27,7 @@ function short(model: string | null): string {
   return m ? m[1] : model
 }
 
-export function ModelPicker({ current, live, onChange }: Props): React.ReactElement {
+export function ModelPicker({ clientId, current, live, onChange }: Props): React.ReactElement {
   const [open, setOpen] = useState(false)
   const [models, setModels] = useState<ModelOption[]>([])
   const [loading, setLoading] = useState(false)
@@ -35,11 +36,11 @@ export function ModelPicker({ current, live, onChange }: Props): React.ReactElem
   useEffect(() => {
     if (!open) return
     setLoading(true)
-    void desk.models().then((m) => {
+    void desk.models(clientId).then((m) => {
       setModels(m.length ? m : FALLBACK)
       setLoading(false)
     })
-  }, [open, live])
+  }, [open, live, clientId])
 
   useEffect(() => {
     if (!open) return

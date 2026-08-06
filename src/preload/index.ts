@@ -18,28 +18,29 @@ import type {
 } from '../shared/types.js'
 
 export interface DeskApi {
-  startSession(opts: {
+  /** Every per-session call is scoped by the renderer's conversation id. */
+  startSession(clientId: string, opts: {
     cwd: string
     model?: string
     resume?: string
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
     profileId?: string | null
   }): Promise<SessionInfo | null>
-  send(text: string, images?: Attachment[]): Promise<void>
-  interrupt(): Promise<void>
-  sessionInfo(): Promise<SessionInfo | null>
-  sessionTurns(): Promise<Turn[]>
-  answerPermission(id: string, answer: PermissionAnswer): Promise<void>
-  models(): Promise<ModelOption[]>
-  setModel(model: string): Promise<SessionInfo | null>
+  send(clientId: string, text: string, images?: Attachment[]): Promise<void>
+  interrupt(clientId: string): Promise<void>
+  sessionInfo(clientId: string): Promise<SessionInfo | null>
+  sessionTurns(clientId: string): Promise<Turn[]>
+  answerPermission(clientId: string, id: string, answer: PermissionAnswer): Promise<void>
+  models(clientId: string): Promise<ModelOption[]>
+  setModel(clientId: string, model: string): Promise<SessionInfo | null>
 
-  mcp(): Promise<McpServerView[]>
-  reconnectMcp(name: string): Promise<McpServerView[]>
-  skills(): Promise<SkillView[]>
-  agents(): Promise<AgentView[]>
+  mcp(clientId: string): Promise<McpServerView[]>
+  reconnectMcp(clientId: string, name: string): Promise<McpServerView[]>
+  skills(clientId: string): Promise<SkillView[]>
+  agents(clientId: string): Promise<AgentView[]>
   plugins(): Promise<PluginView[]>
-  contextUsage(): Promise<ContextUsageView | null>
-  usage(): Promise<UsageView | null>
+  contextUsage(clientId: string): Promise<ContextUsageView | null>
+  usage(clientId: string): Promise<UsageView | null>
   summary(): Promise<{ settingsBytes: number; historyBytes: number }>
 
   historyList(opts?: { limit?: number; countMessages?: boolean }): Promise<HistoryEntry[]>
@@ -71,26 +72,26 @@ export interface DeskApi {
     claudePath: string | null
   }>
 
-  onEvent(cb: (e: MainEvent) => void): () => void
+  onEvent(cb: (clientId: string, e: MainEvent) => void): () => void
 }
 
 const api: DeskApi = {
-  startSession: (opts) => ipcRenderer.invoke('session:start', opts),
-  send: (text, images) => ipcRenderer.invoke('session:send', text, images),
-  interrupt: () => ipcRenderer.invoke('session:interrupt'),
-  sessionInfo: () => ipcRenderer.invoke('session:info'),
-  sessionTurns: () => ipcRenderer.invoke('session:turns'),
-  answerPermission: (id, answer) => ipcRenderer.invoke('permission:answer', id, answer),
-  models: () => ipcRenderer.invoke('session:models'),
-  setModel: (model) => ipcRenderer.invoke('session:setModel', model),
+  startSession: (clientId, opts) => ipcRenderer.invoke('session:start', clientId, opts),
+  send: (clientId, text, images) => ipcRenderer.invoke('session:send', clientId, text, images),
+  interrupt: (clientId) => ipcRenderer.invoke('session:interrupt', clientId),
+  sessionInfo: (clientId) => ipcRenderer.invoke('session:info', clientId),
+  sessionTurns: (clientId) => ipcRenderer.invoke('session:turns', clientId),
+  answerPermission: (clientId, id, answer) => ipcRenderer.invoke('permission:answer', clientId, id, answer),
+  models: (clientId) => ipcRenderer.invoke('session:models', clientId),
+  setModel: (clientId, model) => ipcRenderer.invoke('session:setModel', clientId, model),
 
-  mcp: () => ipcRenderer.invoke('inspect:mcp'),
-  reconnectMcp: (name) => ipcRenderer.invoke('mcp:reconnect', name),
-  skills: () => ipcRenderer.invoke('inspect:skills'),
-  agents: () => ipcRenderer.invoke('inspect:agents'),
+  mcp: (clientId) => ipcRenderer.invoke('inspect:mcp', clientId),
+  reconnectMcp: (clientId, name) => ipcRenderer.invoke('mcp:reconnect', clientId, name),
+  skills: (clientId) => ipcRenderer.invoke('inspect:skills', clientId),
+  agents: (clientId) => ipcRenderer.invoke('inspect:agents', clientId),
   plugins: () => ipcRenderer.invoke('inspect:plugins'),
-  contextUsage: () => ipcRenderer.invoke('inspect:context'),
-  usage: () => ipcRenderer.invoke('inspect:usage'),
+  contextUsage: (clientId) => ipcRenderer.invoke('inspect:context', clientId),
+  usage: (clientId) => ipcRenderer.invoke('inspect:usage', clientId),
   summary: () => ipcRenderer.invoke('inspect:summary'),
 
   historyList: (opts) => ipcRenderer.invoke('history:list', opts),
@@ -115,7 +116,10 @@ const api: DeskApi = {
   env: () => ipcRenderer.invoke('env:info'),
 
   onEvent: (cb) => {
-    const listener = (_e: Electron.IpcRendererEvent, payload: MainEvent): void => cb(payload)
+    const listener = (
+      _e: Electron.IpcRendererEvent,
+      payload: { clientId: string; event: MainEvent },
+    ): void => cb(payload.clientId, payload.event)
     ipcRenderer.on('main-event', listener)
     return () => ipcRenderer.off('main-event', listener)
   },

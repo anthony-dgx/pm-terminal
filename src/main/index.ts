@@ -24,8 +24,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 // playing media the user explicitly configured, so opt out.
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 
-/** One live agent session per window. */
-const sessions = new Map<number, AgentSession>()
+/**
+ * Live agent sessions keyed by the renderer's conversation id.
+ *
+ * One session per window was wrong: opening a second conversation tore down
+ * the first, and its in-flight output was applied to whatever happened to be
+ * on screen. Sessions now run concurrently and every event they emit is
+ * tagged, so the renderer can file it against the right conversation.
+ */
+const sessions = new Map<string, { session: AgentSession; winId: number }>()
+
+function sessionFor(clientId: string): AgentSession | undefined {
+  return sessions.get(clientId)?.session
+}
 
 /** Set once the local renderer server is up; see serveRenderer for why. */
 let rendererUrl: string | null = null
@@ -87,8 +98,11 @@ function createWindow(): BrowserWindow {
   })
 
   win.on('closed', () => {
-    sessions.get(win.id)?.dispose()
-    sessions.delete(win.id)
+    for (const [clientId, entry] of sessions) {
+      if (entry.winId !== win.id) continue
+      entry.session.dispose()
+      sessions.delete(clientId)
+    }
   })
 
   return win
@@ -98,78 +112,63 @@ function windowOf(event: Electron.IpcMainInvokeEvent): BrowserWindow | null {
   return BrowserWindow.fromWebContents(event.sender)
 }
 
-function emitterFor(win: BrowserWindow): (e: MainEvent) => void {
+function emitterFor(win: BrowserWindow, clientId: string): (e: MainEvent) => void {
   return (e) => {
-    if (!win.isDestroyed()) win.webContents.send('main-event', e)
+    if (!win.isDestroyed()) win.webContents.send('main-event', { clientId, event: e })
   }
 }
 
 function registerIpc(): void {
   // ---- session lifecycle -------------------------------------------------
 
-  ipcMain.handle('session:start', async (event, opts: SessionOptions) => {
+  ipcMain.handle('session:start', async (event, clientId: string, opts: SessionOptions) => {
     const win = windowOf(event)
     if (!win) return null
-    sessions.get(win.id)?.dispose()
+    // Only this conversation is replaced; anything else stays running.
+    sessions.get(clientId)?.session.dispose()
     const resolved: SessionOptions = {
       ...opts,
       profilePrompt: (await profilePrompt(opts.profileId)) ?? undefined,
     }
-    const session = new AgentSession(resolved, emitterFor(win))
-    sessions.set(win.id, session)
+    const session = new AgentSession(resolved, emitterFor(win, clientId))
+    sessions.set(clientId, { session, winId: win.id })
     // Remember the directory so the next launch loads the same local-scope
     // MCP servers instead of starting empty in the home directory.
     void writePrefs({ lastCwd: opts.cwd, lastProfileId: opts.profileId ?? null })
     return session.getInfo()
   })
 
-  ipcMain.handle('session:send', (event, text: string, images?: Attachment[]) => {
-    const win = windowOf(event)
-    if (!win) return
-    const session = sessions.get(win.id)
-    if (!session) throw new Error('No session started for this window.')
+  ipcMain.handle('session:send', (_e, clientId: string, text: string, images?: Attachment[]) => {
+    const session = sessionFor(clientId)
+    if (!session) throw new Error('No session started for this conversation.')
     session.send(text, images ?? [])
   })
 
-  ipcMain.handle('session:interrupt', (event) => {
-    const win = windowOf(event)
-    if (win) sessions.get(win.id)?.interrupt()
+  ipcMain.handle('session:interrupt', (_e, clientId: string) => {
+    sessionFor(clientId)?.interrupt()
   })
 
-  ipcMain.handle('session:info', (event) => {
-    const win = windowOf(event)
-    return win ? (sessions.get(win.id)?.getInfo() ?? null) : null
-  })
+  ipcMain.handle('session:info', (_e, clientId: string) => sessionFor(clientId)?.getInfo() ?? null)
 
-  ipcMain.handle('session:turns', (event) => {
-    const win = windowOf(event)
-    return win ? (sessions.get(win.id)?.getTurns() ?? []) : []
-  })
+  ipcMain.handle('session:turns', (_e, clientId: string) => sessionFor(clientId)?.getTurns() ?? [])
 
-  ipcMain.handle('session:models', async (event) => {
-    const win = windowOf(event)
-    return win ? ((await sessions.get(win.id)?.models()) ?? []) : []
-  })
+  ipcMain.handle('session:models', async (_e, clientId: string) => (await sessionFor(clientId)?.models()) ?? [])
 
-  ipcMain.handle('session:setModel', async (event, model: string) => {
-    const win = windowOf(event)
-    if (!win) return null
+  ipcMain.handle('session:setModel', async (_e, clientId: string, model: string) => {
     void writePrefs({ lastModel: model })
-    const session = sessions.get(win.id)
+    const session = sessionFor(clientId)
     return session ? session.setModel(model) : null
   })
 
-  ipcMain.handle('permission:answer', (event, id: string, answer: PermissionAnswer) => {
-    const win = windowOf(event)
-    if (win) sessions.get(win.id)?.answerPermission(id, answer)
+  ipcMain.handle('permission:answer', (_e, clientId: string, id: string, answer: PermissionAnswer) => {
+    sessionFor(clientId)?.answerPermission(id, answer)
   })
 
   // ---- inspector ---------------------------------------------------------
   // Live data from the running session when there is one, disk config otherwise.
 
-  ipcMain.handle('inspect:mcp', async (event) => {
-    const win = windowOf(event)
-    const session = win ? sessions.get(win.id) : undefined
+  ipcMain.handle('inspect:mcp', async (_e, clientId: string) => {
+    const session = sessionFor(clientId)
     const cwd = session?.getInfo().cwd
     const disk = await readMcpFromDisk(cwd)
     const live = session ? await session.mcpServers() : []
@@ -185,37 +184,26 @@ function registerIpc(): void {
     return [...live.map((s) => ({ ...s, appliesToCwd: true })), ...inactive]
   })
 
-  ipcMain.handle('mcp:reconnect', async (event, name: string) => {
-    const win = windowOf(event)
-    const session = win ? sessions.get(win.id) : undefined
+  ipcMain.handle('mcp:reconnect', async (_e, clientId: string, name: string) => {
+    const session = sessionFor(clientId)
     if (!session) throw new Error('Start a session before reconnecting an MCP server.')
     return session.reconnectMcp(name)
   })
 
-  ipcMain.handle('inspect:skills', async (event) => {
-    const win = windowOf(event)
-    const live = win ? await sessions.get(win.id)?.skills() : undefined
+  ipcMain.handle('inspect:skills', async (_e, clientId: string) => {
+    const live = await sessionFor(clientId)?.skills()
     if (live && live.length) return live
     return readSkillsFromDisk()
   })
 
-  ipcMain.handle('inspect:agents', async (event) => {
-    const win = windowOf(event)
-    return win ? ((await sessions.get(win.id)?.agents()) ?? []) : []
-  })
+  ipcMain.handle('inspect:agents', async (_e, clientId: string) => (await sessionFor(clientId)?.agents()) ?? [])
 
   ipcMain.handle('inspect:plugins', () => readPlugins())
   ipcMain.handle('inspect:summary', () => configSummary())
 
-  ipcMain.handle('inspect:context', async (event) => {
-    const win = windowOf(event)
-    return win ? ((await sessions.get(win.id)?.contextUsage()) ?? null) : null
-  })
+  ipcMain.handle('inspect:context', async (_e, clientId: string) => (await sessionFor(clientId)?.contextUsage()) ?? null)
 
-  ipcMain.handle('inspect:usage', (event) => {
-    const win = windowOf(event)
-    return win ? (sessions.get(win.id)?.usage() ?? null) : null
-  })
+  ipcMain.handle('inspect:usage', (_e, clientId: string) => sessionFor(clientId)?.usage() ?? null)
 
   // ---- history -----------------------------------------------------------
 
@@ -291,7 +279,7 @@ void app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  for (const s of sessions.values()) s.dispose()
+  for (const s of sessions.values()) s.session.dispose()
   sessions.clear()
   if (process.platform !== 'darwin') app.quit()
 })

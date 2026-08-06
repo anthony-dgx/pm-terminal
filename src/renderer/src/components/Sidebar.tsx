@@ -51,6 +51,7 @@ interface SessionRowProps {
   entry: HistoryEntry
   home: string
   active: boolean
+  busy: boolean
   onOpen: (e: HistoryEntry) => void
   onResume: (e: HistoryEntry) => void
   onRename: (e: HistoryEntry, title: string) => void
@@ -62,6 +63,7 @@ function SessionRow({
   entry,
   home,
   active,
+  busy,
   onOpen,
   onResume,
   onRename,
@@ -133,6 +135,7 @@ function SessionRow({
       )}
       <div className="hist-meta">
         <span className="hist-cwd">{shortCwd(entry.cwd, home)}</span>
+        {busy ? <span className="hist-busy" title="Working in this session">working</span> : null}
         <span>{relativeTime(entry.modifiedMs)}</span>
       </div>
       {!editing && (
@@ -349,6 +352,8 @@ interface Props {
   /** Bumped when a session starts or finishes a turn, to refresh the list. */
   activityKey: number
   onClose: () => void
+  /** Sessions with work in flight, marked so they are visible while hidden. */
+  busySessionIds: string[]
 }
 
 export function Sidebar({
@@ -360,6 +365,7 @@ export function Sidebar({
   onNewInGroup,
   activityKey,
   onClose,
+  busySessionIds,
 }: Props): React.ReactElement {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [groups, setGroups] = useState<SessionGroup[]>([])
@@ -550,6 +556,7 @@ export function Sidebar({
     setDropTarget(null)
   }, [])
 
+  const busy = new Set(busySessionIds)
   const rowProps = {
     home,
     onOpen,
@@ -626,6 +633,7 @@ export function Sidebar({
                       key={e.sessionId}
                       entry={e}
                       active={activeSessionId === e.sessionId}
+                      busy={busy.has(e.sessionId)}
                       {...rowProps}
                     />
                   ))}
@@ -663,6 +671,7 @@ export function Sidebar({
                       key={e.sessionId}
                       entry={e}
                       active={activeSessionId === e.sessionId}
+                      busy={busy.has(e.sessionId)}
                       {...rowProps}
                     />
                   ))}
