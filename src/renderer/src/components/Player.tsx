@@ -97,7 +97,7 @@ export function Player({ theme = 'default' }: { theme?: string }): React.ReactEl
   const [ready, setReady] = useState(false)
   const hostRef = useRef<HTMLDivElement>(null)
 
-  const themeTrack = theme === 'cowboy' ? COWBOY_TRACK : DEFAULT_TRACK
+  const themeTrack = theme.startsWith('cowboy') ? COWBOY_TRACK : DEFAULT_TRACK
 
   useEffect(() => {
     void desk.playerRead().then((s) => {

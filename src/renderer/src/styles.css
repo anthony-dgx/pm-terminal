@@ -799,11 +799,14 @@ kbd {
 }
 .status-elsewhere { color: var(--ok); }
 
-/* ---- cowboy theme ----------------------------------------------------- */
+/* ---- cowboy theme ------------------------------------------------------ */
 /* Every surface reads from these variables, so a palette swap is the whole
-   theme. Sun-bleached leather, cream paper, amber at sundown. */
+   theme. Sun-bleached leather, cream paper, amber at sundown.
+   'cowboy' is kept as an alias so prefs saved before the flavor submenu
+   existed still render correctly. */
 
-:root[data-theme='cowboy'] {
+:root[data-theme='cowboy'],
+:root[data-theme='cowboy-sundown'] {
   --bg: #17110d;
   --bg-1: #201811;
   --bg-2: #2a2018;
@@ -817,14 +820,60 @@ kbd {
   --warn: #e8bb4b;
   --err: #cc5b3e;
 }
-:root[data-theme='cowboy'] .banner-error { background: #43201a; color: #f0a58f; }
-:root[data-theme='cowboy'] .err-box { background: #43201a; color: #f0a58f; }
+:root[data-theme='cowboy'] .banner-error,
+:root[data-theme='cowboy-sundown'] .banner-error,
+:root[data-theme='cowboy'] .err-box,
+:root[data-theme='cowboy-sundown'] .err-box { background: #43201a; color: #f0a58f; }
 :root[data-theme='cowboy'] .code-block,
 :root[data-theme='cowboy'] .tool-pre,
-:root[data-theme='cowboy'] .perm-subject { background: #140f0b; }
-:root[data-theme='cowboy'] .btn-primary { color: #241708; }
-:root[data-theme='cowboy'] .btn-allow { color: #16210d; }
-:root[data-theme='cowboy'] .perm { background: #2e2411; }
+:root[data-theme='cowboy'] .perm-subject,
+:root[data-theme='cowboy-sundown'] .code-block,
+:root[data-theme='cowboy-sundown'] .tool-pre,
+:root[data-theme='cowboy-sundown'] .perm-subject { background: #140f0b; }
+:root[data-theme='cowboy'] .btn-primary,
+:root[data-theme='cowboy-sundown'] .btn-primary { color: #241708; }
+:root[data-theme='cowboy'] .btn-allow,
+:root[data-theme='cowboy-sundown'] .btn-allow { color: #16210d; }
+:root[data-theme='cowboy'] .perm,
+:root[data-theme='cowboy-sundown'] .perm { background: #2e2411; }
+
+/* ---- cowboy (high noon, saloon night, prairie dusk) -------------------- */
+/* Same variable mapping as sundown above, different moods. */
+
+:root[data-theme='cowboy-high-noon'] {
+  --bg: #211a13; --bg-1: #2a2117; --bg-2: #35291b; --bg-3: #46371f; --line: #5a4a2c;
+  --text: #f2e8d5; --text-dim: #cbb98f; --text-faint: #9c8759;
+  --accent: #3fa9a0; --ok: #8a9a4b; --warn: #d99a3d; --err: #c1502f;
+}
+:root[data-theme='cowboy-saloon-night'] {
+  --bg: #150f0c; --bg-1: #1c1410; --bg-2: #241a13; --bg-3: #35261a; --line: #4a3624;
+  --text: #ecdcc0; --text-dim: #b99a6d; --text-faint: #7c6248;
+  --accent: #b8863b; --ok: #6f8f4a; --warn: #d1a23a; --err: #8f2f2f;
+}
+:root[data-theme='cowboy-prairie-dusk'] {
+  --bg: #1a1620; --bg-1: #211c29; --bg-2: #2b2433; --bg-3: #3a3145; --line: #4f4258;
+  --text: #ece6f0; --text-dim: #b8a9c4; --text-faint: #83718f;
+  --accent: #d97a5a; --ok: #7a9e6e; --warn: #e0a852; --err: #b6456b;
+}
+
+/* Surfaces that were hardcoded dark for sundown - derive from each flavor's
+   own bg/err/warn instead, same approach used for the catppuccin flavors. */
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .code-block,
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .tool-pre,
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .perm-subject {
+  background: var(--bg);
+}
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .banner-error,
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .err-box {
+  background: color-mix(in srgb, var(--err) 22%, var(--bg)); color: var(--err);
+}
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .perm {
+  background: color-mix(in srgb, var(--warn) 16%, var(--bg)); border-color: var(--warn);
+}
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .btn-primary,
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .btn-allow {
+  color: var(--bg);
+}
 
 .theme-btn {
   background: none; border: 1px solid transparent; color: var(--text-dim);
