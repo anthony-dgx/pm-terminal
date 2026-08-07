@@ -12,7 +12,86 @@ import tail from '../assets/kroks/tail.svg'
 import shadow from '../assets/kroks/shadow.svg'
 import heartSvg from '../assets/kroks/heart.svg'
 import meowMp3 from '../assets/kroks/meow.mp3'
+import hBody from '../assets/rodeo/body.svg'
+import hHeadNormal from '../assets/rodeo/head-normal.svg'
+import hHeadOpen from '../assets/rodeo/head-open.svg'
+import hEyesOpen from '../assets/rodeo/eyes-open.svg'
+import hEyesClosed from '../assets/rodeo/eyes-closed.svg'
+import hMouth from '../assets/rodeo/mouth-open.svg'
+import hTeeth from '../assets/rodeo/teeth.svg'
+import hEarLeft from '../assets/rodeo/ear-left.svg'
+import hEarRight from '../assets/rodeo/ear-right.svg'
+import hTail from '../assets/rodeo/tail.svg'
 import '../kroks.css'
+
+/**
+ * Two casts share one rig. The paper-doll layers, timings and animations are
+ * identical; only the artwork and the voice differ.
+ */
+const CASTS = {
+  cat: {
+    name: 'Kroks',
+    body,
+    headNormal,
+    headOpen,
+    eyesOpen,
+    eyesClosed,
+    mouth: mouthMeow,
+    extra: tongue,
+    earLeft,
+    earRight,
+    tail,
+  },
+  horse: {
+    name: 'Rodeo',
+    body: hBody,
+    headNormal: hHeadNormal,
+    headOpen: hHeadOpen,
+    eyesOpen: hEyesOpen,
+    eyesClosed: hEyesClosed,
+    mouth: hMouth,
+    extra: hTeeth,
+    earLeft: hEarLeft,
+    earRight: hEarRight,
+    tail: hTail,
+  },
+} as const
+
+export type PetVariant = keyof typeof CASTS
+
+/**
+ * A short whinny. There is no horse recording bundled, and a cat meow coming
+ * out of a horse would be worse than a synthesised one.
+ */
+function whinny(): void {
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+  if (!Ctx) return
+  const ctx = new Ctx()
+  const now = ctx.currentTime
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  const vib = ctx.createOscillator()
+  const vibGain = ctx.createGain()
+
+  osc.type = 'sawtooth'
+  osc.frequency.setValueAtTime(760, now)
+  osc.frequency.exponentialRampToValueAtTime(360, now + 0.55)
+  // The warble is what makes it read as a horse rather than a slide whistle.
+  vib.frequency.setValueAtTime(26, now)
+  vibGain.gain.setValueAtTime(55, now)
+  vib.connect(vibGain).connect(osc.frequency)
+
+  gain.gain.setValueAtTime(0.0001, now)
+  gain.gain.exponentialRampToValueAtTime(0.16, now + 0.05)
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7)
+
+  osc.connect(gain).connect(ctx.destination)
+  osc.start(now)
+  vib.start(now)
+  osc.stop(now + 0.72)
+  vib.stop(now + 0.72)
+  window.setTimeout(() => void ctx.close(), 1000)
+}
 
 /**
  * Kroks, ported from Lab/black-cat-pet. Same paper-doll layers and idle
@@ -30,9 +109,12 @@ interface Props {
   reaction: KroksReaction
   /** True while the agent is mid-turn; drives the fast "excited" tail. */
   working: boolean
+  /** Which cast to render. The cowboy theme swaps in the horse. */
+  variant?: PetVariant
 }
 
-export function Kroks({ reaction, working }: Props): React.ReactElement {
+export function Kroks({ reaction, working, variant = 'cat' }: Props): React.ReactElement {
+  const cast = CASTS[variant]
   const rootRef = useRef<HTMLDivElement>(null)
   const catRef = useRef<HTMLDivElement>(null)
   const headFollowRef = useRef<HTMLDivElement>(null)
@@ -40,7 +122,7 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
   const earLRef = useRef<HTMLImageElement>(null)
   const earRRef = useRef<HTMLImageElement>(null)
 
-  const [face, setFace] = useState({ head: headNormal, eyes: eyesOpen, mouth: false, tongue: false })
+  const [face, setFace] = useState({ head: cast.headNormal, eyes: cast.eyesOpen, mouth: false, tongue: false })
   const [sleeping, setSleeping] = useState(false)
   const [muted, setMuted] = useState(false)
   const [floaters, setFloaters] = useState<{ id: number; kind: 'heart' | 'zzz'; left: number }[]>([])
@@ -64,8 +146,13 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
   }, [])
 
   const idleFace = useCallback(() => {
-    setFace({ head: headNormal, eyes: eyesOpen, mouth: false, tongue: false })
-  }, [])
+    setFace({ head: cast.headNormal, eyes: cast.eyesOpen, mouth: false, tongue: false })
+  }, [cast])
+
+  // Swapping cast mid-run must not leave the previous animal's face behind.
+  useEffect(() => {
+    idleFace()
+  }, [idleFace])
 
   // ---- sleep / wake ------------------------------------------------------
 
@@ -76,8 +163,8 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
     window.clearTimeout(poseTimer.current)
     setSleeping(true)
     // Sleepy pose: open-mouth head with closed eyes, no mouth or tongue art.
-    setFace({ head: headOpen, eyes: eyesClosed, mouth: false, tongue: false })
-  }, [])
+    setFace({ head: cast.headOpen, eyes: cast.eyesClosed, mouth: false, tongue: false })
+  }, [cast])
 
   const resetSleepTimer = useCallback(() => {
     window.clearTimeout(sleepTimer.current)
@@ -97,12 +184,16 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
 
   const playSound = useCallback(() => {
     if (mutedRef.current) return
+    if (variant === 'horse') {
+      whinny()
+      return
+    }
     const a = audioRef.current
     if (!a) return
     a.currentTime = 0
     // Autoplay can reject before any user gesture; a silent pet is fine.
     void a.play().catch(() => undefined)
-  }, [])
+  }, [variant])
 
   /** Restart a CSS animation class that may already be applied. */
   const restart = (el: HTMLElement | null, cls: string): void => {
@@ -116,7 +207,7 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
     wakeUp()
     playSound()
     busyRef.current = true
-    setFace({ head: headOpen, eyes: eyesOpen, mouth: true, tongue: false })
+    setFace({ head: cast.headOpen, eyes: cast.eyesOpen, mouth: true, tongue: false })
     restart(catRef.current, 'meow')
     window.clearTimeout(poseTimer.current)
     // Hold the pose through all three hops (3 x 0.42s).
@@ -125,14 +216,14 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
       idleFace()
       busyRef.current = false
     }, 1350)
-  }, [wakeUp, playSound, idleFace])
+  }, [wakeUp, playSound, idleFace, cast])
 
   const showHappy = useCallback(
     (opts: { closedEyes?: boolean; heart?: boolean } = {}) => {
       busyRef.current = true
       setFace({
-        head: headNormal,
-        eyes: opts.closedEyes ? eyesClosed : eyesOpen,
+        head: cast.headNormal,
+        eyes: opts.closedEyes ? cast.eyesClosed : cast.eyesOpen,
         mouth: false,
         tongue: true,
       })
@@ -149,7 +240,7 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
         busyRef.current = false
       }, 600)
     },
-    [addFloater, idleFace],
+    [addFloater, idleFace, cast],
   )
 
   const perkUp = useCallback(() => {
@@ -179,7 +270,7 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
           if (!busyRef.current && !sleepingRef.current) {
             setFace((f) => ({ ...f, eyes: eyesClosed }))
             window.setTimeout(() => {
-              if (!busyRef.current && !sleepingRef.current) setFace((f) => ({ ...f, eyes: eyesOpen }))
+              if (!busyRef.current && !sleepingRef.current) setFace((f) => ({ ...f, eyes: cast.eyesOpen }))
             }, 150)
           }
           scheduleBlink()
@@ -206,7 +297,7 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
       window.clearInterval(playTimer)
       window.clearInterval(zzzTimer)
     }
-  }, [resetSleepTimer, showHappy, addFloater])
+  }, [resetSleepTimer, showHappy, addFloater, cast])
 
   // ---- pointer interaction ----------------------------------------------
 
@@ -270,28 +361,28 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
           onClick={onPet}
           onMouseMove={onMove}
           onMouseLeave={onLeave}
-          title={sleeping ? 'Kroks is napping. Click to wake him.' : 'Click to pet Kroks'}
+          title={sleeping ? `${cast.name} is napping. Click to wake him.` : `Click to pet ${cast.name}`}
         >
           <div className="kroks-stack">
-            <img className="kroks-layer kroks-tail" src={tail} draggable={false} alt="" />
-            <img className="kroks-layer" src={body} draggable={false} alt="" />
+            <img className="kroks-layer kroks-tail" src={cast.tail} draggable={false} alt="" />
+            <img className="kroks-layer" src={cast.body} draggable={false} alt="" />
             <div className="kroks-head-group">
               <div className="kroks-head-follow" ref={headFollowRef}>
                 <img className="kroks-layer kroks-head" src={face.head} draggable={false} alt="" />
-                {face.mouth && <img className="kroks-layer" src={mouthMeow} draggable={false} alt="" />}
-                {face.tongue && <img className="kroks-layer" src={tongue} draggable={false} alt="" />}
+                {face.mouth && <img className="kroks-layer" src={cast.mouth} draggable={false} alt="" />}
+                {face.tongue && <img className="kroks-layer" src={cast.extra} draggable={false} alt="" />}
                 <img className="kroks-layer kroks-eyes" ref={eyesRef} src={face.eyes} draggable={false} alt="" />
                 <img
                   className="kroks-layer kroks-ear-l"
                   ref={earLRef}
-                  src={earLeft}
+                  src={cast.earLeft}
                   draggable={false}
                   alt=""
                 />
                 <img
                   className="kroks-layer kroks-ear-r"
                   ref={earRRef}
-                  src={earRight}
+                  src={cast.earRight}
                   draggable={false}
                   alt=""
                 />
@@ -305,11 +396,11 @@ export function Kroks({ reaction, working }: Props): React.ReactElement {
       </div>
 
       <div className="kroks-bar">
-        <span className="kroks-name">Kroks</span>
+        <span className="kroks-name">{cast.name}</span>
         <button
           className="kroks-mute"
           onClick={() => setMuted((m) => !m)}
-          title={muted ? 'Unmute Kroks' : 'Mute Kroks'}
+          title={muted ? `Unmute ${cast.name}` : `Mute ${cast.name}`}
         >
           {muted ? 'muted' : 'sound'}
         </button>

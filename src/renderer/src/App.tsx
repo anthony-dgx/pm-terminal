@@ -569,8 +569,12 @@ export function App(): React.ReactElement {
           {/* Kept mounted while collapsed: unmounting the player would tear
               down the YouTube iframe and stop the music. */}
           <div className="left-dock" hidden={!sidebarOpen}>
-            <Player />
-            <Kroks reaction={kroks} working={conv.awaiting} />
+            <Player theme={theme} />
+            <Kroks
+              reaction={kroks}
+              working={conv.awaiting}
+              variant={theme === 'cowboy' ? 'horse' : 'cat'}
+            />
           </div>
         </div>
 

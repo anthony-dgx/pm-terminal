@@ -73,14 +73,20 @@ declare global {
 
 /** Loaded on first run and whenever nothing is saved yet. */
 const DEFAULT_TRACK = 'https://www.youtube.com/watch?v=EPRCD7P7mVM'
+/** The cowboy theme brings its own default. */
+const COWBOY_TRACK = 'https://www.youtube.com/watch?v=HuvGir8xjJU'
+
+/** Any track a theme installs by itself, so we know when we may replace it. */
+const THEME_TRACKS = new Set([DEFAULT_TRACK, COWBOY_TRACK])
 
 const PRESETS: { label: string; url: string }[] = [
   { label: 'default', url: DEFAULT_TRACK },
+  { label: 'cowboy', url: COWBOY_TRACK },
   { label: 'lofi hip hop radio', url: 'https://www.youtube.com/watch?v=jfKfPfyJRdk' },
   { label: 'lofi sleep/chill', url: 'https://www.youtube.com/watch?v=rUxyKA_-grg' },
 ]
 
-export function Player(): React.ReactElement {
+export function Player({ theme = 'default' }: { theme?: string }): React.ReactElement {
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
   const [src, setSrc] = useState<PlayerSource | null>(null)
@@ -91,9 +97,11 @@ export function Player(): React.ReactElement {
   const [ready, setReady] = useState(false)
   const hostRef = useRef<HTMLDivElement>(null)
 
+  const themeTrack = theme === 'cowboy' ? COWBOY_TRACK : DEFAULT_TRACK
+
   useEffect(() => {
     void desk.playerRead().then((s) => {
-      const url = s?.url || DEFAULT_TRACK
+      const url = s?.url || themeTrack
       const parsed = parseYouTube(url)
       if (parsed) {
         setSrc(parsed)
@@ -101,7 +109,24 @@ export function Player(): React.ReactElement {
       }
       if (typeof s?.volume === 'number') setVolume(s.volume)
     })
+    // Only on mount: later theme changes are handled below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Follow the theme, but never override a track you chose yourself. Only a
+  // track another theme installed is fair game to replace.
+  useEffect(() => {
+    setSrc((current) => {
+      if (current && !THEME_TRACKS.has(current.url)) return current
+      if (current?.url === themeTrack) return current
+      const parsed = parseYouTube(themeTrack)
+      if (!parsed) return current
+      setInput(themeTrack)
+      setReady(false)
+      void desk.playerWrite({ url: themeTrack })
+      return parsed
+    })
+  }, [themeTrack])
 
   const playerRef = useRef<YTPlayer | null>(null)
 
