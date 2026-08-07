@@ -564,6 +564,7 @@ kbd {
   background: var(--bg-2); border: 1px solid var(--line); border-radius: 9px;
   padding: 5px; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
 }
+.model-menu-left { right: auto; left: 0; }
 .model-loading { font-size: 11px; color: var(--text-faint); padding: 6px 7px; line-height: 1.45; }
 .model-item {
   display: block; width: 100%; text-align: left; background: none; border: none;
@@ -888,9 +889,12 @@ kbd {
 .code-meta { margin-left: auto; margin-right: 0; }
 
 /* ---- catppuccin (mocha) ------------------------------------------------ */
-/* Palette values from the published Catppuccin Mocha design tokens. */
+/* Palette values from the published Catppuccin Mocha design tokens.
+   'catppuccin' is kept as an alias so prefs saved before the flavor
+   submenu existed still render correctly. */
 
-:root[data-theme='catppuccin'] {
+:root[data-theme='catppuccin'],
+:root[data-theme='catppuccin-mocha'] {
   --bg: #11111b;        /* crust   */
   --bg-1: #181825;      /* mantle  */
   --bg-2: #1e1e2e;      /* base    */
@@ -907,24 +911,106 @@ kbd {
 /* Surfaces that were hardcoded dark before themes existed. */
 :root[data-theme='catppuccin'] .code-block,
 :root[data-theme='catppuccin'] .tool-pre,
-:root[data-theme='catppuccin'] .perm-subject { background: #11111b; }
+:root[data-theme='catppuccin'] .perm-subject,
+:root[data-theme='catppuccin-mocha'] .code-block,
+:root[data-theme='catppuccin-mocha'] .tool-pre,
+:root[data-theme='catppuccin-mocha'] .perm-subject { background: #11111b; }
 :root[data-theme='catppuccin'] .banner-error,
-:root[data-theme='catppuccin'] .err-box { background: #302030; color: #f38ba8; }
-:root[data-theme='catppuccin'] .perm { background: #2a2438; border-color: #f9e2af; }
-:root[data-theme='catppuccin'] .btn-primary { color: #1e1e2e; }
-:root[data-theme='catppuccin'] .btn-allow { color: #1e1e2e; }
-:root[data-theme='catppuccin'] .btn-deny { border-color: #f38ba8; color: #f38ba8; }
-:root[data-theme='catppuccin'] .msg-avatar { color: #1e1e2e; }
+:root[data-theme='catppuccin'] .err-box,
+:root[data-theme='catppuccin-mocha'] .banner-error,
+:root[data-theme='catppuccin-mocha'] .err-box { background: #302030; color: #f38ba8; }
+:root[data-theme='catppuccin'] .perm,
+:root[data-theme='catppuccin-mocha'] .perm { background: #2a2438; border-color: #f9e2af; }
+:root[data-theme='catppuccin'] .btn-primary,
+:root[data-theme='catppuccin-mocha'] .btn-primary { color: #1e1e2e; }
+:root[data-theme='catppuccin'] .btn-allow,
+:root[data-theme='catppuccin-mocha'] .btn-allow { color: #1e1e2e; }
+:root[data-theme='catppuccin'] .btn-deny,
+:root[data-theme='catppuccin-mocha'] .btn-deny { border-color: #f38ba8; color: #f38ba8; }
+:root[data-theme='catppuccin'] .msg-avatar,
+:root[data-theme='catppuccin-mocha'] .msg-avatar { color: #1e1e2e; }
 /* Group colours, matched to the same palette. */
-:root[data-theme='catppuccin'] .grp-blue   { --grp: #89b4fa; }
-:root[data-theme='catppuccin'] .grp-red    { --grp: #f38ba8; }
-:root[data-theme='catppuccin'] .grp-yellow { --grp: #f9e2af; }
-:root[data-theme='catppuccin'] .grp-green  { --grp: #a6e3a1; }
-:root[data-theme='catppuccin'] .grp-pink   { --grp: #f5c2e7; }
-:root[data-theme='catppuccin'] .grp-purple { --grp: #cba6f7; }
-:root[data-theme='catppuccin'] .grp-cyan   { --grp: #94e2d5; }
-:root[data-theme='catppuccin'] .grp-grey   { --grp: #9399b2; }
+:root[data-theme='catppuccin'] .grp-blue,   :root[data-theme='catppuccin-mocha'] .grp-blue   { --grp: #89b4fa; }
+:root[data-theme='catppuccin'] .grp-red,    :root[data-theme='catppuccin-mocha'] .grp-red    { --grp: #f38ba8; }
+:root[data-theme='catppuccin'] .grp-yellow, :root[data-theme='catppuccin-mocha'] .grp-yellow { --grp: #f9e2af; }
+:root[data-theme='catppuccin'] .grp-green,  :root[data-theme='catppuccin-mocha'] .grp-green  { --grp: #a6e3a1; }
+:root[data-theme='catppuccin'] .grp-pink,   :root[data-theme='catppuccin-mocha'] .grp-pink   { --grp: #f5c2e7; }
+:root[data-theme='catppuccin'] .grp-purple, :root[data-theme='catppuccin-mocha'] .grp-purple { --grp: #cba6f7; }
+:root[data-theme='catppuccin'] .grp-cyan,   :root[data-theme='catppuccin-mocha'] .grp-cyan   { --grp: #94e2d5; }
+:root[data-theme='catppuccin'] .grp-grey,   :root[data-theme='catppuccin-mocha'] .grp-grey   { --grp: #9399b2; }
+
+/* ---- catppuccin (latte, frappé, macchiato) ----------------------------- */
+/* Same variable mapping as mocha above (crust/mantle/base/surface0/surface1,
+   text/subtext0/overlay1, blue/green/yellow/red), just different flavors. */
+
+:root[data-theme='catppuccin-latte'] {
+  --bg: #dce0e8; --bg-1: #e6e9ef; --bg-2: #eff1f5; --bg-3: #ccd0da; --line: #bcc0cc;
+  --text: #4c4f69; --text-dim: #6c6f85; --text-faint: #8c8fa1;
+  --accent: #1e66f5; --ok: #40a02b; --warn: #df8e1d; --err: #d20f39;
+}
+:root[data-theme='catppuccin-latte'] .grp-blue   { --grp: #1e66f5; }
+:root[data-theme='catppuccin-latte'] .grp-red    { --grp: #d20f39; }
+:root[data-theme='catppuccin-latte'] .grp-yellow { --grp: #df8e1d; }
+:root[data-theme='catppuccin-latte'] .grp-green  { --grp: #40a02b; }
+:root[data-theme='catppuccin-latte'] .grp-pink   { --grp: #ea76cb; }
+:root[data-theme='catppuccin-latte'] .grp-purple { --grp: #8839ef; }
+:root[data-theme='catppuccin-latte'] .grp-cyan   { --grp: #179299; }
+:root[data-theme='catppuccin-latte'] .grp-grey   { --grp: #7c7f93; }
+
+:root[data-theme='catppuccin-frappe'] {
+  --bg: #232634; --bg-1: #292c3c; --bg-2: #303446; --bg-3: #414559; --line: #51576d;
+  --text: #c6d0f5; --text-dim: #a5adce; --text-faint: #838ba7;
+  --accent: #8caaee; --ok: #a6d189; --warn: #e5c890; --err: #e78284;
+}
+:root[data-theme='catppuccin-frappe'] .grp-blue   { --grp: #8caaee; }
+:root[data-theme='catppuccin-frappe'] .grp-red    { --grp: #e78284; }
+:root[data-theme='catppuccin-frappe'] .grp-yellow { --grp: #e5c890; }
+:root[data-theme='catppuccin-frappe'] .grp-green  { --grp: #a6d189; }
+:root[data-theme='catppuccin-frappe'] .grp-pink   { --grp: #f4b8e4; }
+:root[data-theme='catppuccin-frappe'] .grp-purple { --grp: #ca9ee6; }
+:root[data-theme='catppuccin-frappe'] .grp-cyan   { --grp: #81c8be; }
+:root[data-theme='catppuccin-frappe'] .grp-grey   { --grp: #949cbb; }
+
+:root[data-theme='catppuccin-macchiato'] {
+  --bg: #181926; --bg-1: #1e2030; --bg-2: #24273a; --bg-3: #363a4f; --line: #494d64;
+  --text: #cad3f5; --text-dim: #a5adcb; --text-faint: #8087a2;
+  --accent: #8aadf4; --ok: #a6da95; --warn: #eed49f; --err: #ed8796;
+}
+:root[data-theme='catppuccin-macchiato'] .grp-blue   { --grp: #8aadf4; }
+:root[data-theme='catppuccin-macchiato'] .grp-red    { --grp: #ed8796; }
+:root[data-theme='catppuccin-macchiato'] .grp-yellow { --grp: #eed49f; }
+:root[data-theme='catppuccin-macchiato'] .grp-green  { --grp: #a6da95; }
+:root[data-theme='catppuccin-macchiato'] .grp-pink   { --grp: #f5bde6; }
+:root[data-theme='catppuccin-macchiato'] .grp-purple { --grp: #c6a0f6; }
+:root[data-theme='catppuccin-macchiato'] .grp-cyan   { --grp: #8bd5ca; }
+:root[data-theme='catppuccin-macchiato'] .grp-grey   { --grp: #939ab7; }
+
+/* Surfaces that were hardcoded dark before themes existed - derive from the
+   flavor's own crust/error/warn so latte (light) doesn't inherit a dark box. */
+:root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .code-block,
+:root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .tool-pre,
+:root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .perm-subject {
+  background: var(--bg);
+}
+:root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .banner-error,
+:root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .err-box {
+  background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err);
+}
+:root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .perm {
+  background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn);
+}
+:root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .btn-primary,
+:root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .btn-allow,
+:root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .msg-avatar {
+  color: var(--bg);
+}
+:root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .btn-deny {
+  border-color: var(--err); color: var(--err);
+}
 
 .theme-dot { display: block; width: 11px; height: 11px; border-radius: 50%; }
 .theme-swatch { display: inline-flex; border-radius: 3px; overflow: hidden; }
 .theme-swatch i { display: block; width: 9px; height: 12px; }
+.theme-row { position: relative; }
+.theme-caret { margin-left: auto; opacity: 0.6; font-size: 11px; }
+.theme-submenu { position: absolute; left: 100%; top: -5px; margin-left: 6px; z-index: 61; }
