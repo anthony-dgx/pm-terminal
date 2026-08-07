@@ -52,6 +52,10 @@ interface SessionRowProps {
   home: string
   active: boolean
   busy: boolean
+  groups: SessionGroup[]
+  /** Group this session currently sits in, if any. */
+  groupId: string | null
+  onAssign: (sessionId: string, groupId: string | null) => void
   onOpen: (e: HistoryEntry) => void
   onResume: (e: HistoryEntry) => void
   onRename: (e: HistoryEntry, title: string) => void
@@ -64,6 +68,9 @@ function SessionRow({
   home,
   active,
   busy,
+  groups,
+  groupId,
+  onAssign,
   onOpen,
   onResume,
   onRename,
@@ -71,6 +78,7 @@ function SessionRow({
   onDragEnd,
 }: SessionRowProps): React.ReactElement {
   const [editing, setEditing] = useState(false)
+  const [menu, setMenu] = useState(false)
   const [draft, setDraft] = useState(entry.title)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -160,6 +168,48 @@ function SessionRow({
           >
             Resume
           </button>
+          <button
+            className="hist-btn"
+            onClick={(ev) => {
+              ev.stopPropagation()
+              setMenu((m) => !m)
+            }}
+            title="Move to a group"
+          >
+            ···
+          </button>
+        </div>
+      )}
+
+      {menu && (
+        <div className="hist-menu" onClick={(e) => e.stopPropagation()} onMouseLeave={() => setMenu(false)}>
+          <div className="grp-menu-label">Move to group</div>
+          {groups.length === 0 && <p className="grp-empty">No groups yet</p>}
+          {groups.map((g) => (
+            <button
+              key={g.id}
+              className={`grp-menu-item grp-${g.color} ${groupId === g.id ? 'is-on' : ''}`}
+              onClick={() => {
+                onAssign(entry.sessionId, g.id)
+                setMenu(false)
+              }}
+            >
+              <span className="grp-dot" />
+              {g.name}
+              {groupId === g.id && <span className="model-check">✓</span>}
+            </button>
+          ))}
+          {groupId && (
+            <button
+              className="grp-menu-item"
+              onClick={() => {
+                onAssign(entry.sessionId, null)
+                setMenu(false)
+              }}
+            >
+              Remove from group
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -572,8 +622,14 @@ export function Sidebar({
   }, [])
 
   const busy = new Set(busySessionIds)
+  /** sessionId -> the group holding it, for the per-row menu. */
+  const groupOf = new Map<string, string>()
+  for (const g of groups) for (const sid of g.sessionIds) groupOf.set(sid, g.id)
+
   const rowProps = {
     home,
+    groups,
+    onAssign: assign,
     onOpen,
     onResume,
     onRename: renameEntry,
@@ -649,10 +705,11 @@ export function Sidebar({
                       entry={e}
                       active={activeSessionId === e.sessionId}
                       busy={busy.has(e.sessionId)}
+                      groupId={groupOf.get(e.sessionId) ?? null}
                       {...rowProps}
                     />
                   ))}
-                  {!members.length && <p className="grp-empty">Drag sessions here</p>}
+                  {!members.length && <p className="grp-empty">Drag here, or use ··· on a session</p>}
                 </div>
               )}
             </div>
@@ -687,6 +744,7 @@ export function Sidebar({
                       entry={e}
                       active={activeSessionId === e.sessionId}
                       busy={busy.has(e.sessionId)}
+                      groupId={groupOf.get(e.sessionId) ?? null}
                       {...rowProps}
                     />
                   ))}
