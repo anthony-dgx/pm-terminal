@@ -24,7 +24,18 @@ export const THEMES: ThemeDef[] = [
       { id: 'catppuccin-mocha', name: 'Mocha', note: 'Darkest, soft pastels', swatch: ['#1e1e2e', '#89b4fa'] },
     ],
   },
-  { id: 'cowboy', name: 'Cowboy', note: 'Leather and amber, with a horse', swatch: ['#17110d', '#e0913b'] },
+  {
+    id: 'cowboy',
+    name: 'Cowboy',
+    note: 'Pick a flavor',
+    swatch: ['#17110d', '#e0913b'],
+    flavors: [
+      { id: 'cowboy-sundown', name: 'Sundown', note: 'Leather and amber, with a horse', swatch: ['#17110d', '#e0913b'] },
+      { id: 'cowboy-high-noon', name: 'High Noon', note: 'Desert daylight, turquoise and terracotta', swatch: ['#211a13', '#3fa9a0'] },
+      { id: 'cowboy-saloon-night', name: 'Saloon Night', note: 'Dark wood, brass, and poker felt', swatch: ['#150f0c', '#b8863b'] },
+      { id: 'cowboy-prairie-dusk', name: 'Prairie Dusk', note: 'Sunset over the plains, cooler twilight', swatch: ['#1a1620', '#d97a5a'] },
+    ],
+  },
 ]
 
 function findTheme(id: string): ThemeDef | undefined {
