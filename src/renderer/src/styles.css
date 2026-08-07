@@ -1011,6 +1011,47 @@ kbd {
   border-color: var(--err); color: var(--err);
 }
 
+/* ---- dracula ------------------------------------------------------------ */
+/* Palette values from the official Dracula spec (draculatheme.com). Same
+   variable mapping as the other themes: background/current-line/selection
+   for the bg scale, foreground/comment for text, and the named accents. */
+
+:root[data-theme='dracula'] {
+  --bg: #282a36;        /* background    */
+  --bg-1: #2f313f;
+  --bg-2: #383a4a;
+  --bg-3: #44475a;      /* current line / selection */
+  --line: #4d5066;
+  --text: #f8f8f2;      /* foreground    */
+  --text-dim: #bfbfd1;
+  --text-faint: #6272a4;/* comment       */
+  --accent: #bd93f9;    /* purple        */
+  --ok: #50fa7b;        /* green         */
+  --warn: #f1fa8c;      /* yellow        */
+  --err: #ff5555;       /* red           */
+}
+/* Surfaces that were hardcoded dark before themes existed. */
+:root[data-theme='dracula'] .code-block,
+:root[data-theme='dracula'] .tool-pre,
+:root[data-theme='dracula'] .perm-subject { background: var(--bg); }
+:root[data-theme='dracula'] .banner-error,
+:root[data-theme='dracula'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='dracula'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='dracula'] .btn-primary,
+:root[data-theme='dracula'] .btn-allow,
+:root[data-theme='dracula'] .msg-avatar { color: var(--bg); }
+:root[data-theme='dracula'] .btn-deny { border-color: var(--err); color: var(--err); }
+/* Group colours, matched to the same palette. Dracula has no plain blue, so
+   cyan covers both the blue and cyan slots - the closest cool hue it has. */
+:root[data-theme='dracula'] .grp-blue   { --grp: #8be9fd; }
+:root[data-theme='dracula'] .grp-red    { --grp: #ff5555; }
+:root[data-theme='dracula'] .grp-yellow { --grp: #f1fa8c; }
+:root[data-theme='dracula'] .grp-green  { --grp: #50fa7b; }
+:root[data-theme='dracula'] .grp-pink   { --grp: #ff79c6; }
+:root[data-theme='dracula'] .grp-purple { --grp: #bd93f9; }
+:root[data-theme='dracula'] .grp-cyan   { --grp: #8be9fd; }
+:root[data-theme='dracula'] .grp-grey   { --grp: #6272a4; }
+
 .theme-dot { display: block; width: 11px; height: 11px; border-radius: 50%; }
 .theme-swatch { display: inline-flex; border-radius: 3px; overflow: hidden; }
 .theme-swatch i { display: block; width: 9px; height: 12px; }

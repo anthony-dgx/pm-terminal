@@ -25,6 +25,7 @@ export const THEMES: ThemeDef[] = [
     ],
   },
   { id: 'cowboy', name: 'Cowboy', note: 'Leather and amber, with a horse', swatch: ['#17110d', '#e0913b'] },
+  { id: 'dracula', name: 'Dracula', note: 'Dark, with a lively purple accent', swatch: ['#282a36', '#bd93f9'] },
 ]
 
 function findTheme(id: string): ThemeDef | undefined {
