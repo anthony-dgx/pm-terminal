@@ -13,7 +13,6 @@ import { Inspector } from './components/Inspector.js'
 import { PermissionPrompt } from './components/PermissionPrompt.js'
 import { Sidebar } from './components/Sidebar.js'
 import { TurnView } from './components/TurnView.js'
-import { CopyButton } from './components/Copy.js'
 import { Kroks, type KroksReaction } from './components/Kroks.js'
 import { Player } from './components/Player.js'
 import { ModelPicker } from './components/ModelPicker.js'
@@ -458,20 +457,6 @@ export function App(): React.ReactElement {
     [conv?.turns],
   )
 
-  const copyConversation = useCallback(
-    () =>
-      (conv?.turns ?? [])
-        .map((t) => {
-          const body = t.blocks
-            .filter((b) => b.kind === 'text')
-            .map((b) => (b.kind === 'text' ? b.text : ''))
-            .join('\n\n')
-          return `## ${t.role === 'user' ? 'You' : 'Claude'}\n\n${body}`
-        })
-        .join('\n\n'),
-    [conv?.turns],
-  )
-
   /** Session ids with work in flight, so the sidebar can mark them. */
   const busySessionIds = useMemo(
     () =>
@@ -523,7 +508,6 @@ export function App(): React.ReactElement {
             live={conv.info?.status === 'running'}
             onChange={changeModel}
           />
-          {winWidth >= 900 && <CopyButton text={copyConversation} label="Copy conversation" />}
           {conv.awaiting && (
             <button className="btn btn-deny" onClick={stop}>
               Stop

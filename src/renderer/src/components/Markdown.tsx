@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { marked, type Tokens } from 'marked'
 import hljs from 'highlight.js'
-import { CopyButton } from './Copy.js'
 
 marked.setOptions({ gfm: true, breaks: false })
 
@@ -26,8 +25,6 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }): React.React
         <span className="code-meta">
           {lines} {lines === 1 ? 'line' : 'lines'}
         </span>
-        {/* Copies the raw source, so no line numbers or wrap artifacts. */}
-        <CopyButton text={code} label="Copy code" />
       </div>
       <pre>
         <code className="hljs" dangerouslySetInnerHTML={{ __html: html }} />
@@ -36,32 +33,12 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }): React.React
   )
 }
 
-function stripInline(md: string): string {
-  // Tables get pasted into Sheets and Docs, where markdown emphasis is noise.
-  return md
-    .replace(/`([^`]*)`/g, '$1')
-    .replace(/\*\*([^*]*)\*\*/g, '$1')
-    .replace(/\*([^*]*)\*/g, '$1')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    .trim()
-}
-
 function TableBlock({ token }: { token: Tokens.Table }): React.ReactElement {
   const header = token.header.map((c) => c.text)
   const rows = token.rows.map((r) => r.map((c) => c.text))
 
-  const asTsv = (): string =>
-    [header, ...rows].map((r) => r.map((c) => stripInline(c).replace(/\t/g, ' ')).join('\t')).join('\n')
-
-  const asMarkdown = (): string => token.raw.trim()
-
   return (
     <div className="table-block">
-      <div className="table-head">
-        {/* TSV is what actually pastes cleanly into Sheets and Docs tables. */}
-        <CopyButton text={asTsv} label="Copy as TSV" title="Paste into Sheets or Docs" />
-        <CopyButton text={asMarkdown} label="Copy as Markdown" />
-      </div>
       <div className="table-scroll">
         <table>
           <thead>

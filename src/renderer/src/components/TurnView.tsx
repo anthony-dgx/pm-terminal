@@ -37,14 +37,6 @@ function ToolBlockView({ block }: { block: Extract<Block, { kind: 'tool' }> }): 
             {block.durationMs !== undefined ? ` · ${(block.durationMs / 1000).toFixed(1)}s` : ''}
           </span>
         )}
-        <span className="tool-actions" onClick={(e) => e.stopPropagation()}>
-          <CopyButton text={() => JSON.stringify(block.input, null, 2)} label="Input" title="Copy tool input JSON" />
-          {!pending && (
-            /* Copies the full result even when the view is collapsed or the
-               terminal would have truncated it. */
-            <CopyButton text={() => result} label="Output" title="Copy full tool output" />
-          )}
-        </span>
       </div>
 
       {open && (
@@ -86,26 +78,67 @@ function ThinkingView({ text }: { text: string }): React.ReactElement {
       <div className="thinking-head" onClick={() => setOpen((o) => !o)}>
         <span className="tool-caret">{open ? '▾' : '▸'}</span>
         <span>Thinking</span>
-        <span className="tool-actions" onClick={(e) => e.stopPropagation()}>
-          <CopyButton text={text} />
-        </span>
       </div>
       {open && <pre className="tool-pre thinking-pre">{text}</pre>}
     </div>
   )
 }
 
-/** Whole-turn markdown, for pasting a full reply into Slack or Confluence. */
-function turnToMarkdown(turn: Turn, streamBuffer?: string): string {
-  const parts: string[] = []
-  for (const b of turn.blocks) {
-    if (b.kind === 'text') parts.push(b.text)
-    else if (b.kind === 'image') parts.push('[image]')
-    else if (b.kind === 'thinking') continue
-    else if (b.kind === 'tool') parts.push(`\`${b.name}\`: ${toolSummary(b.name, b.input)}`)
-  }
-  if (!turn.blocks.length && streamBuffer) parts.push(streamBuffer)
-  return parts.join('\n\n').trim()
+/**
+ * Everything the agent did to get to the answer, folded behind one line.
+ *
+ * Tool calls and reasoning used to sit inline and dominate the transcript. The
+ * answer is what you are reading for, so the work is one click away instead.
+ */
+function Activity({ blocks }: { blocks: Block[] }): React.ReactElement | null {
+  const [open, setOpen] = useState(false)
+  const tools = blocks.filter((b) => b.kind === 'tool')
+  if (!blocks.length) return null
+
+  const running = tools.some((b) => b.kind === 'tool' && b.result === undefined)
+  const seconds = tools.reduce((sum, b) => sum + (b.kind === 'tool' ? (b.durationMs ?? 0) : 0), 0) / 1000
+  const names = [...new Set(tools.map((b) => (b.kind === 'tool' ? b.name : '')))].filter(Boolean)
+
+  const label = tools.length
+    ? `${tools.length} step${tools.length === 1 ? '' : 's'}`
+    : 'Thought about it'
+
+  return (
+    <div className={`activity ${open ? 'is-open' : ''}`}>
+      <button className="activity-head" onClick={() => setOpen((o) => !o)}>
+        <span className="tool-caret">{open ? '▾' : '▸'}</span>
+        <span className="activity-label">{label}</span>
+        {!open && names.length > 0 && <span className="activity-names">{names.slice(0, 3).join(', ')}</span>}
+        {running ? (
+          <span className="activity-time is-running">running</span>
+        ) : (
+          seconds > 0 && <span className="activity-time">{seconds.toFixed(1)}s</span>
+        )}
+      </button>
+
+      {open && (
+        <div className="activity-body">
+          {blocks.map((b, i) =>
+            b.kind === 'tool' ? (
+              <ToolBlockView key={b.id} block={b} />
+            ) : b.kind === 'thinking' ? (
+              <ThinkingView key={i} text={b.text} />
+            ) : null,
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Just the answer, for the one copy button that matters. */
+function answerText(turn: Turn, streamBuffer?: string): string {
+  const text = turn.blocks
+    .filter((b) => b.kind === 'text')
+    .map((b) => (b.kind === 'text' ? b.text : ''))
+    .join('\n\n')
+    .trim()
+  return text || (streamBuffer ?? '').trim()
 }
 
 interface TurnViewProps {
@@ -116,31 +149,37 @@ interface TurnViewProps {
 
 export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElement {
   const isUser = turn.role === 'user'
+  const work = turn.blocks.filter((b) => b.kind === 'tool' || b.kind === 'thinking')
+  const said = turn.blocks.filter((b) => b.kind === 'text' || b.kind === 'image')
+  const answer = answerText(turn, streamBuffer)
 
   return (
-    <div className={`turn turn-${turn.role}`}>
-      <div className="turn-gutter">
-        <span className="turn-role">{isUser ? 'You' : 'Claude'}</span>
-        <span className="turn-actions">
-          <CopyButton
-            text={() => turnToMarkdown(turn, streamBuffer)}
-            label="Copy turn"
-            title="Copy the whole turn as markdown"
-          />
-        </span>
+    <div className={`msg msg-${turn.role}`}>
+      {!isUser && <div className="msg-avatar" aria-hidden="true">C</div>}
+
+      <div className="msg-main">
+        <div className="msg-who">{isUser ? 'You' : 'Claude'}</div>
+
+        <div className="msg-bubble">
+          {/* The work comes first because it happened first, but folded. */}
+          {!isUser && <Activity blocks={work} />}
+
+          {said.map((b, i) =>
+            b.kind === 'text' ? <Markdown key={i} source={b.text} /> : <ImageBlockView key={i} block={b} />,
+          )}
+          {streamBuffer && <Markdown source={streamBuffer} />}
+          {turn.streaming && <span className="caret-blink" />}
+        </div>
+
+        {/* One button, on the answer, which is the thing worth copying. */}
+        {!isUser && answer && (
+          <div className="msg-actions">
+            <CopyButton text={() => answer} label="Copy answer" />
+          </div>
+        )}
       </div>
 
-      <div className="turn-body">
-        {turn.blocks.map((b, i) => {
-          if (b.kind === 'text') return <Markdown key={i} source={b.text} />
-          if (b.kind === 'thinking') return <ThinkingView key={i} text={b.text} />
-          if (b.kind === 'image') return <ImageBlockView key={i} block={b} />
-          return <ToolBlockView key={b.id} block={b} />
-        })}
-        {/* Text still streaming after the already-finalized blocks above. */}
-        {streamBuffer && <Markdown source={streamBuffer} />}
-        {turn.streaming && <span className="caret-blink" />}
-      </div>
+      {isUser && <div className="msg-avatar msg-avatar-you" aria-hidden="true">Y</div>}
     </div>
   )
 }
