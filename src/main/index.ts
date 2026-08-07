@@ -45,8 +45,10 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1500,
     height: 950,
-    minWidth: 1000,
-    minHeight: 600,
+    // Low enough to sit in a third of a screen. The renderer folds its side
+    // panels away as it narrows so the chat stays usable.
+    minWidth: 380,
+    minHeight: 420,
     title: 'Claude Desk',
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#14151a',

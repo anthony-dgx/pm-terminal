@@ -95,6 +95,7 @@ export function App(): React.ReactElement {
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [theme, setTheme] = useState('default')
+  const [winWidth, setWinWidth] = useState(() => window.innerWidth)
   const [notices, setNotices] = useState<{ level: string; text: string }[]>([])
   const [inspectorKey, setInspectorKey] = useState(0)
   // Bumped to ask the sidebar to create a group; it owns the group state.
@@ -108,6 +109,8 @@ export function App(): React.ReactElement {
   const scrollRef = useRef<HTMLDivElement>(null)
   const pinnedRef = useRef(true)
   const newConversationRef = useRef<(profileId?: string | null) => void>(() => undefined)
+  const sidebarPrefRef = useRef(true)
+  const inspectorPrefRef = useRef(true)
 
   /** Update one conversation without touching any other. */
   const patch = useCallback((id: string, fn: (c: Conversation) => Conversation) => {
@@ -123,6 +126,8 @@ export function App(): React.ReactElement {
       setEnv(e)
       setInspectorOpen(e.inspectorOpen)
       setSidebarOpen(e.sidebarOpen)
+      inspectorPrefRef.current = e.inspectorOpen
+      sidebarPrefRef.current = e.sidebarOpen
       setTheme(e.theme)
       const first = blankConversation({
         cwd: e.defaultCwd,
@@ -198,6 +203,37 @@ export function App(): React.ReactElement {
     if (el && pinnedRef.current) el.scrollTop = el.scrollHeight
   }, [conv?.turns, conv?.streamBuffers])
 
+  // Fold the side panels away as the window narrows, and bring back whatever
+  // was open once there is room again. Crossing the threshold is what acts, so
+  // you can still force a panel open by hand at any width.
+  useEffect(() => {
+    const SIDEBAR_MIN = 700
+    const INSPECTOR_MIN = 1040
+    let wasNarrowSidebar = window.innerWidth < SIDEBAR_MIN
+    let wasNarrowInspector = window.innerWidth < INSPECTOR_MIN
+
+    const onResize = (): void => {
+      const w = window.innerWidth
+      setWinWidth(w)
+
+      const narrowSidebar = w < SIDEBAR_MIN
+      if (narrowSidebar !== wasNarrowSidebar) {
+        wasNarrowSidebar = narrowSidebar
+        // Never persisted: this is a reaction to size, not a preference.
+        setSidebarOpen(narrowSidebar ? false : sidebarPrefRef.current)
+      }
+
+      const narrowInspector = w < INSPECTOR_MIN
+      if (narrowInspector !== wasNarrowInspector) {
+        wasNarrowInspector = narrowInspector
+        setInspectorOpen(narrowInspector ? false : inspectorPrefRef.current)
+      }
+    }
+    window.addEventListener('resize', onResize)
+    onResize()
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
   // The whole UI is built on CSS variables, so a theme is just a palette swap
   // driven by a data attribute on the root element.
   useEffect(() => {
@@ -215,6 +251,7 @@ export function App(): React.ReactElement {
   const toggleInspector = useCallback(() => {
     setInspectorOpen((open) => {
       const next = !open
+      inspectorPrefRef.current = next
       void desk.setInspectorOpen(next)
       return next
     })
@@ -223,6 +260,7 @@ export function App(): React.ReactElement {
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((open) => {
       const next = !open
+      sidebarPrefRef.current = next
       void desk.setSidebarOpen(next)
       return next
     })
@@ -250,7 +288,10 @@ export function App(): React.ReactElement {
           // A group created into a hidden sidebar would be invisible, so
           // reveal it first.
           setSidebarOpen((open) => {
-            if (!open) void desk.setSidebarOpen(true)
+            if (!open) {
+              sidebarPrefRef.current = true
+              void desk.setSidebarOpen(true)
+            }
             return true
           })
           setNewGroupSignal((n) => n + 1)
@@ -467,7 +508,7 @@ export function App(): React.ReactElement {
         <div className="titlebar-right">
           {otherBusy > 0 && (
             <span className="status status-elsewhere" title="Other sessions are still working">
-              {otherBusy} running elsewhere
+              {winWidth >= 900 ? `${otherBusy} running elsewhere` : otherBusy}
             </span>
           )}
           <span className={`status status-${statusLabel}`}>{statusLabel}</span>
@@ -482,7 +523,7 @@ export function App(): React.ReactElement {
             live={conv.info?.status === 'running'}
             onChange={changeModel}
           />
-          <CopyButton text={copyConversation} label="Copy conversation" />
+          {winWidth >= 900 && <CopyButton text={copyConversation} label="Copy conversation" />}
           {conv.awaiting && (
             <button className="btn btn-deny" onClick={stop}>
               Stop

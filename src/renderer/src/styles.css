@@ -787,3 +787,41 @@ kbd {
   border-radius: 6px; padding: 1px 5px; font-size: 12px; line-height: 18px;
 }
 .theme-btn:hover { border-color: var(--line); color: var(--text); }
+
+/* ---- narrow windows --------------------------------------------------- */
+/* The app has to work at a third of a screen, so trim padding and let the
+   titlebar shed what it can rather than overflowing. */
+
+.titlebar-right { min-width: 0; flex-shrink: 1; overflow: hidden; }
+.titlebar-left { min-width: 0; }
+/* The pickers show a model or profile name, which can be long. Let them
+   truncate instead of pushing the titlebar wider than the window. */
+.model-picker { min-width: 0; }
+.model-btn { max-width: 150px; overflow: hidden; }
+.model-btn > :first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.titlebar .cwd-btn { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 900px) {
+  .titlebar { padding-left: 78px; gap: 6px; }
+  .model-btn { max-width: 96px; }
+  .titlebar-left, .titlebar-right { gap: 6px; }
+  .titlebar .cwd-btn { max-width: 110px; }
+  .chat-scroll { padding: 14px 12px 8px; }
+  .composer { padding: 8px 12px 10px; }
+  .perm-stack, .notices { padding-left: 12px; padding-right: 12px; }
+  .slash-menu { left: 12px; right: 12px; }
+  .turn-image { max-width: 100%; }
+}
+
+@media (max-width: 620px) {
+  .app-name { display: none; }
+  .model-btn { max-width: 66px; padding: 2px 4px; }
+  .titlebar .cwd-btn { max-width: 78px; }
+  .status { padding: 1px 5px; font-size: 10px; }
+  .titlebar { padding-left: 76px; }
+  .chat-scroll { padding: 12px 9px 6px; }
+  .composer { padding: 7px 9px 9px; }
+  .perm-stack, .notices { padding-left: 9px; padding-right: 9px; }
+  .slash-menu { left: 9px; right: 9px; }
+  .code-block pre { font-size: 11px; }
+}
