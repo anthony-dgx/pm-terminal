@@ -835,7 +835,10 @@ kbd {
 /* The app has to work at a third of a screen, so trim padding and let the
    titlebar shed what it can rather than overflowing. */
 
-.titlebar-right { min-width: 0; flex-shrink: 1; overflow: hidden; }
+/* No overflow:hidden here. The pickers drop their menus below the 38px
+   titlebar, and clipping made them invisible while still present and
+   clickable. Truncation is handled per button instead. */
+.titlebar-right { min-width: 0; flex-shrink: 1; }
 .titlebar-left { min-width: 0; }
 /* The pickers show a model or profile name, which can be long. Let them
    truncate instead of pushing the titlebar wider than the window. */
