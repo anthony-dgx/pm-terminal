@@ -19,6 +19,7 @@ import { ModelPicker } from './components/ModelPicker.js'
 import { Composer } from './components/Composer.js'
 import { ProfilePicker } from './components/Profiles.js'
 import { Thinking, phaseOf } from './components/Thinking.js'
+import { ThemePicker } from './components/ThemePicker.js'
 
 /**
  * One conversation on screen. Several can exist at once and each keeps its own
@@ -239,12 +240,9 @@ export function App(): React.ReactElement {
     document.documentElement.dataset.theme = theme
   }, [theme])
 
-  const cycleTheme = useCallback(() => {
-    setTheme((t) => {
-      const next = t === 'cowboy' ? 'default' : 'cowboy'
-      void desk.setTheme(next)
-      return next
-    })
+  const chooseTheme = useCallback((next: string) => {
+    setTheme(next)
+    void desk.setTheme(next)
   }, [])
 
   const toggleInspector = useCallback(() => {
@@ -482,13 +480,7 @@ export function App(): React.ReactElement {
           <button className="cwd-btn" onClick={() => void pickDir()} title="Change working directory">
             {shortCwd}
           </button>
-          <button
-            className="theme-btn"
-            onClick={cycleTheme}
-            title={theme === 'cowboy' ? 'Switch to the default theme' : 'Switch to the cowboy theme'}
-          >
-            {theme === 'cowboy' ? '🤠' : '◐'}
-          </button>
+          <ThemePicker current={theme} onChange={chooseTheme} />
         </div>
         <div className="titlebar-right">
           {otherBusy > 0 && (

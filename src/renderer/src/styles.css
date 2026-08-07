@@ -886,3 +886,45 @@ kbd {
 .table-block .table-head { display: none; }
 .code-head { justify-content: flex-start; }
 .code-meta { margin-left: auto; margin-right: 0; }
+
+/* ---- catppuccin (mocha) ------------------------------------------------ */
+/* Palette values from the published Catppuccin Mocha design tokens. */
+
+:root[data-theme='catppuccin'] {
+  --bg: #11111b;        /* crust   */
+  --bg-1: #181825;      /* mantle  */
+  --bg-2: #1e1e2e;      /* base    */
+  --bg-3: #313244;      /* surface0 */
+  --line: #45475a;      /* surface1 */
+  --text: #cdd6f4;      /* text     */
+  --text-dim: #a6adc8;  /* subtext0 */
+  --text-faint: #7f849c;/* overlay1 */
+  --accent: #89b4fa;    /* blue     */
+  --ok: #a6e3a1;        /* green    */
+  --warn: #f9e2af;      /* yellow   */
+  --err: #f38ba8;       /* red      */
+}
+/* Surfaces that were hardcoded dark before themes existed. */
+:root[data-theme='catppuccin'] .code-block,
+:root[data-theme='catppuccin'] .tool-pre,
+:root[data-theme='catppuccin'] .perm-subject { background: #11111b; }
+:root[data-theme='catppuccin'] .banner-error,
+:root[data-theme='catppuccin'] .err-box { background: #302030; color: #f38ba8; }
+:root[data-theme='catppuccin'] .perm { background: #2a2438; border-color: #f9e2af; }
+:root[data-theme='catppuccin'] .btn-primary { color: #1e1e2e; }
+:root[data-theme='catppuccin'] .btn-allow { color: #1e1e2e; }
+:root[data-theme='catppuccin'] .btn-deny { border-color: #f38ba8; color: #f38ba8; }
+:root[data-theme='catppuccin'] .msg-avatar { color: #1e1e2e; }
+/* Group colours, matched to the same palette. */
+:root[data-theme='catppuccin'] .grp-blue   { --grp: #89b4fa; }
+:root[data-theme='catppuccin'] .grp-red    { --grp: #f38ba8; }
+:root[data-theme='catppuccin'] .grp-yellow { --grp: #f9e2af; }
+:root[data-theme='catppuccin'] .grp-green  { --grp: #a6e3a1; }
+:root[data-theme='catppuccin'] .grp-pink   { --grp: #f5c2e7; }
+:root[data-theme='catppuccin'] .grp-purple { --grp: #cba6f7; }
+:root[data-theme='catppuccin'] .grp-cyan   { --grp: #94e2d5; }
+:root[data-theme='catppuccin'] .grp-grey   { --grp: #9399b2; }
+
+.theme-dot { display: block; width: 11px; height: 11px; border-radius: 50%; }
+.theme-swatch { display: inline-flex; border-radius: 3px; overflow: hidden; }
+.theme-swatch i { display: block; width: 9px; height: 12px; }
