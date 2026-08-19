@@ -48,9 +48,9 @@ document in **its own window**, formatted, with a comment rail down the side.
   yellow, and clicking either the highlight or the card links the pair.
 - **Ready for changes** sends every comment at once and the rewritten document comes back **into
   that window**, ready for the next round. You never go back to the chat.
-- **Iterate** asks Claude how it would address each comment without rewriting anything yet. The
-  answer appears at the top of the rail.
 - Earlier rounds stay in the rail, folded, so you can see what you already asked for.
+- If Claude answers with something other than a document, the answer shows in the rail and your
+  document is left alone rather than overwritten with prose.
 
 Comments go into the conversation the document came from, so the transcript keeps the whole history.
 They live in memory for the session and are not saved to disk.

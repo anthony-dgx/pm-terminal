@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Reader } from './components/Reader.js'
-import { composeReviewPrompt, docTitle, type ReviewComment, type ReviewMode, type ReviewRound } from './review.js'
+import { composeReviewPrompt, docTitle, type ReviewComment, type ReviewRound } from './review.js'
 import { desk } from './lib/api.js'
 import type { MainEvent, Turn } from '../../shared/types.js'
 
@@ -76,7 +76,7 @@ export function extractDocument(answer: string, current: string): string | null 
   return body
 }
 
-type Status = { kind: 'idle' } | { kind: 'waiting'; mode: ReviewMode } | { kind: 'error'; text: string }
+type Status = { kind: 'idle' } | { kind: 'waiting' } | { kind: 'error'; text: string }
 
 export function ReaderWindow(): React.ReactElement {
   const [clientId, setClientId] = useState<string | null>(null)
@@ -88,7 +88,9 @@ export function ReaderWindow(): React.ReactElement {
   const [reply, setReply] = useState<string | null>(null)
 
   // Read in the event handler, which is registered once and must not go stale.
-  const pending = useRef<ReviewMode | null>(null)
+  // Also the guard that makes the handler ignore replies to anything the chat
+  // window sent, since a session's events reach every window.
+  const pending = useRef(false)
   const snapRef = useRef('')
   snapRef.current = snapshot ?? ''
 
@@ -117,22 +119,15 @@ export function ReaderWindow(): React.ReactElement {
       if (id !== clientId) return
       if (e.type === 'notice' && e.level === 'error') {
         setStatus({ kind: 'error', text: e.text })
-        pending.current = null
+        pending.current = false
         return
       }
       if (e.type !== 'turn') return
       if (e.turn.role !== 'assistant' || e.turn.streaming !== false) return
-      const mode = pending.current
-      if (!mode) return
-      pending.current = null
+      if (!pending.current) return
+      pending.current = false
 
       const answer = answerOf(e.turn)
-      if (mode === 'iterate') {
-        setReply(answer)
-        setStatus({ kind: 'idle' })
-        return
-      }
-
       const next = extractDocument(answer, snapRef.current)
       if (!next) {
         setReply(answer)
@@ -152,15 +147,15 @@ export function ReaderWindow(): React.ReactElement {
   }, [clientId, title])
 
   const send = useCallback(
-    (mode: ReviewMode): void => {
+    (): void => {
       if (!clientId || !comments.length) return
-      setRounds((r) => [...r, { at: new Date().toISOString(), mode, comments }])
+      setRounds((r) => [...r, { at: new Date().toISOString(), comments }])
       setComments([])
       setReply(null)
-      setStatus({ kind: 'waiting', mode })
-      pending.current = mode
-      desk.send(clientId, composeReviewPrompt(mode, comments)).catch((err: Error) => {
-        pending.current = null
+      setStatus({ kind: 'waiting' })
+      pending.current = true
+      desk.send(clientId, composeReviewPrompt(comments)).catch((err: Error) => {
+        pending.current = false
         setStatus({
           kind: 'error',
           text: /no session/i.test(err.message)
@@ -186,7 +181,7 @@ export function ReaderWindow(): React.ReactElement {
       onClose={() => window.close()}
       busy={status.kind === 'waiting'}
       standalone
-      waiting={status.kind === 'waiting' ? status.mode : null}
+      waiting={status.kind === 'waiting'}
       error={status.kind === 'error' ? status.text : null}
       reply={reply}
       onDismissReply={() => {

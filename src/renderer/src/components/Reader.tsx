@@ -2,13 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Markdown } from './Markdown.js'
 import { CopyButton } from './Copy.js'
 import { clearMarks, markQuote } from '../lib/highlight.js'
-import {
-  ReviewContext,
-  type ReviewComment,
-  type ReviewDoc,
-  type ReviewMode,
-  type ReviewRound,
-} from '../review.js'
+import { ReviewContext, type ReviewComment, type ReviewDoc, type ReviewRound } from '../review.js'
 
 const MAX_QUOTE = 300
 
@@ -31,19 +25,19 @@ interface ReaderProps {
   doc: ReviewDoc
   rounds: ReviewRound[]
   onChange: (comments: ReviewComment[]) => void
-  onSend: (mode: ReviewMode) => void
+  onSend: () => void
   onClose: () => void
   /** True while the conversation is waiting on the agent. */
   busy?: boolean
   /** Own window rather than an overlay: no app titlebar above it. */
   standalone?: boolean
-  /** Which round is in flight, for the status line. */
-  waiting?: ReviewMode | null
+  /** A round is in flight, for the status line. */
+  waiting?: boolean
   error?: string | null
   /**
-   * The agent's prose reply. `Iterate` asks for discussion rather than a
-   * rewrite, and in a detached window there is no transcript for that to land
-   * in - so it shows here.
+   * The agent's prose reply, shown when it answered with something other than a
+   * document. In a detached window there is no transcript for that to land in,
+   * and swapping it in would destroy the document - so it shows here instead.
    */
   reply?: string | null
   onDismissReply?: () => void
@@ -172,14 +166,7 @@ export function Reader({
         </div>
         <div className="reader-actions">
           <CopyButton text={() => doc.snapshot} label="Copy" />
-          <button className="reader-btn" disabled={!n || busy} onClick={() => onSend('iterate')}>
-            Iterate
-          </button>
-          <button
-            className="reader-btn is-primary"
-            disabled={!n || busy}
-            onClick={() => onSend('apply')}
-          >
+          <button className="reader-btn is-primary" disabled={!n || busy} onClick={onSend}>
             Ready for changes
           </button>
           <button className="reader-close" onClick={onClose} title="Close (Esc)">
@@ -200,9 +187,7 @@ export function Reader({
         <div className="reader-rail">
           {waiting && (
             <div className="rc-status">
-              {waiting === 'apply'
-                ? 'Applying your comments. The document updates here when it comes back.'
-                : 'Asking Claude how it would address each comment.'}
+              Applying your comments. The document updates here when it comes back.
             </div>
           )}
 
@@ -291,7 +276,6 @@ export function Reader({
                 <details key={r.at} className="rc-round">
                   <summary>
                     Round {i + 1} · {r.comments.length} sent
-                    {r.mode === 'iterate' ? ' to discuss' : ''}
                   </summary>
                   {r.comments.map((c) => (
                     <div key={c.id} className="rc-card is-past">
