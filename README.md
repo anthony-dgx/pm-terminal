@@ -40,6 +40,21 @@ Each keeps its own conversation, and the sidebar marks the ones still running.
 anything by double-clicking, and reorder groups. Click a session and start typing to carry on where
 you left off, on the model it was already using.
 
+**Review a document the way you would in Google Docs.** When Claude writes a document, the reply
+carries a **Review** button - on a fenced markdown block, or on the whole answer. It opens the
+document in **its own window**, formatted, with a comment rail down the side.
+
+- Select any text and a comment box appears in the rail. `Cmd+Enter` commits it. The text turns
+  yellow, and clicking either the highlight or the card links the pair.
+- **Ready for changes** sends every comment at once and the rewritten document comes back **into
+  that window**, ready for the next round. You never go back to the chat.
+- **Iterate** asks Claude how it would address each comment without rewriting anything yet. The
+  answer appears at the top of the rail.
+- Earlier rounds stay in the rail, folded, so you can see what you already asked for.
+
+Comments go into the conversation the document came from, so the transcript keeps the whole history.
+They live in memory for the session and are not saved to disk.
+
 **Check your setup.** A side panel shows:
 
 - **MCP** servers with live connection status, worst first, each with a **Reconnect** button

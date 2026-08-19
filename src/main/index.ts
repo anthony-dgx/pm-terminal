@@ -41,15 +41,38 @@ function sessionFor(clientId: string): AgentSession | undefined {
 /** Set once the local renderer server is up; see serveRenderer for why. */
 let rendererUrl: string | null = null
 
-function createWindow(): BrowserWindow {
+/**
+ * Documents handed to a review window, keyed by that window's id.
+ *
+ * The renderer cannot be given the document at construction time - it boots
+ * asynchronously - so it asks for its own payload once mounted.
+ */
+const readerDocs = new Map<number, ReaderDoc>()
+
+interface ReaderDoc {
+  /** Conversation the document came from. The review window sends into it. */
+  clientId: string
+  title: string
+  snapshot: string
+}
+
+interface WindowOptions {
+  /** Route the renderer picks up on boot. '#reader' opens the review view. */
+  hash?: string
+  title?: string
+  width?: number
+  height?: number
+}
+
+function createWindow(opts: WindowOptions = {}): BrowserWindow {
   const win = new BrowserWindow({
-    width: 1500,
-    height: 950,
+    width: opts.width ?? 1500,
+    height: opts.height ?? 950,
     // Low enough to sit in a third of a screen. The renderer folds its side
     // panels away as it narrows so the chat stays usable.
     minWidth: 380,
     minHeight: 420,
-    title: 'Claude Desk',
+    title: opts.title ?? 'Claude Desk',
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#14151a',
     webPreferences: {
@@ -60,10 +83,11 @@ function createWindow(): BrowserWindow {
     },
   })
 
+  const hash = opts.hash ?? ''
   const devUrl = process.env.ELECTRON_RENDERER_URL
-  if (devUrl) void win.loadURL(devUrl)
-  else if (rendererUrl) void win.loadURL(rendererUrl)
-  else void win.loadFile(join(__dirname, '../renderer/index.html'))
+  if (devUrl) void win.loadURL(devUrl + hash)
+  else if (rendererUrl) void win.loadURL(rendererUrl + hash)
+  else void win.loadFile(join(__dirname, '../renderer/index.html'), { hash: hash.slice(1) })
 
   // Only http(s) and mailto reach the real browser; anything else is dropped
   // rather than handed to the OS.
@@ -100,6 +124,7 @@ function createWindow(): BrowserWindow {
   })
 
   win.on('closed', () => {
+    readerDocs.delete(win.id)
     for (const [clientId, entry] of sessions) {
       if (entry.winId !== win.id) continue
       entry.session.dispose()
@@ -110,13 +135,42 @@ function createWindow(): BrowserWindow {
   return win
 }
 
+/**
+ * Open a document in its own window, tied to the conversation it came from.
+ *
+ * No session is bound to this window, so closing it cannot dispose the chat's
+ * session in the handler above - the review window sends into an existing
+ * conversation and never starts one.
+ */
+function openReaderWindow(doc: ReaderDoc): number {
+  const win = createWindow({
+    hash: '#reader',
+    title: `Review - ${doc.title}`,
+    width: 1180,
+    height: 900,
+  })
+  readerDocs.set(win.id, doc)
+  return win.id
+}
+
 function windowOf(event: Electron.IpcMainInvokeEvent): BrowserWindow | null {
   return BrowserWindow.fromWebContents(event.sender)
 }
 
-function emitterFor(win: BrowserWindow, clientId: string): (e: MainEvent) => void {
+/**
+ * Fan a session's events out to every window, tagged with its conversation.
+ *
+ * This used to target the one window that started the session. A review window
+ * opened on a document then saw nothing when it sent comments back, because the
+ * reply went to the chat window only. Broadcasting is safe: a renderer that
+ * does not know the conversation id ignores the event (see `patch` in App.tsx,
+ * which no-ops on an unknown id).
+ */
+function emitterFor(clientId: string): (e: MainEvent) => void {
   return (e) => {
-    if (!win.isDestroyed()) win.webContents.send('main-event', { clientId, event: e })
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.isDestroyed()) win.webContents.send('main-event', { clientId, event: e })
+    }
   }
 }
 
@@ -132,12 +186,22 @@ function registerIpc(): void {
       ...opts,
       profilePrompt: (await profilePrompt(opts.profileId)) ?? undefined,
     }
-    const session = new AgentSession(resolved, emitterFor(win, clientId))
+    const session = new AgentSession(resolved, emitterFor(clientId))
     sessions.set(clientId, { session, winId: win.id })
     // Remember the directory so the next launch loads the same local-scope
     // MCP servers instead of starting empty in the home directory.
     void writePrefs({ lastCwd: opts.cwd, lastProfileId: opts.profileId ?? null })
     return session.getInfo()
+  })
+
+  // ---- review windows ----------------------------------------------------
+
+  ipcMain.handle('reader:open', (_e, doc: ReaderDoc) => openReaderWindow(doc))
+
+  /** A review window asking which document it was opened on. */
+  ipcMain.handle('reader:doc', (event) => {
+    const win = windowOf(event)
+    return win ? (readerDocs.get(win.id) ?? null) : null
   })
 
   ipcMain.handle('session:send', (_e, clientId: string, text: string, images?: Attachment[]) => {

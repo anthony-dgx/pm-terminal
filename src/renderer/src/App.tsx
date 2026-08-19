@@ -20,6 +20,7 @@ import { Composer } from './components/Composer.js'
 import { ProfilePicker } from './components/Profiles.js'
 import { Thinking, phaseOf } from './components/Thinking.js'
 import { ThemePicker } from './components/ThemePicker.js'
+import { ReviewContext } from './review.js'
 
 /**
  * One conversation on screen. Several can exist at once and each keeps its own
@@ -307,14 +308,30 @@ export function App(): React.ReactElement {
 
   // ---- actions -----------------------------------------------------------
 
+  /**
+   * Send a prompt. Defaults to whatever is in the composer, but callers can
+   * pass their own - a review batch is a prompt the user never typed there.
+   * Setting `input` and then calling submit would race React's state.
+   */
   const submit = useCallback(
-    async (images: Attachment[] = []) => {
+    async (images: Attachment[] = [], override?: string) => {
       const c = conversations[activeId]
       if (!c) return
-      const text = c.input.trim()
+      const fromComposer = override === undefined
+      // Guard on the text actually being sent, not on the composer, or a
+      // review batch would be swallowed whenever the composer is empty.
+      const text = (override ?? c.input).trim()
       if ((!text && !images.length) || c.info?.status === 'starting') return
 
-      patch(c.id, (x) => ({ ...x, input: '', awaiting: true, awaitSince: Date.now(), started: true }))
+      patch(c.id, (x) => ({
+        ...x,
+        // Only clear the composer if that is where this came from. A review
+        // batch must not throw away a draft the user was part way through.
+        input: fromComposer ? '' : x.input,
+        awaiting: true,
+        awaitSince: Date.now(),
+        started: true,
+      }))
 
       // Start the agent on first send, or after it died. Resume when this
       // conversation came from an existing transcript.
@@ -332,6 +349,23 @@ export function App(): React.ReactElement {
       await desk.send(c.id, text, images)
     },
     [conversations, activeId, patch, poke],
+  )
+
+  // ---- review ------------------------------------------------------------
+
+  /**
+   * A document opens in its own window, not over the chat.
+   *
+   * The window sends its comments back into this conversation, so the review
+   * rounds still appear in this transcript - but the reading and commenting
+   * happen next to the chat rather than on top of it, and the rewritten
+   * document returns into that window.
+   */
+  const openReview = useCallback(
+    (title: string, snapshot: string) => {
+      void desk.readerOpen({ clientId: activeId, title, snapshot })
+    },
+    [activeId],
   )
 
   const changeModel = useCallback(
@@ -473,6 +507,7 @@ export function App(): React.ReactElement {
   const otherBusy = Object.values(conversations).filter((c) => c.awaiting && c.id !== activeId).length
 
   return (
+    <ReviewContext.Provider value={openReview}>
     <div className="app">
       <header className="titlebar">
         <div className="titlebar-left">
@@ -632,6 +667,8 @@ export function App(): React.ReactElement {
           </button>
         )}
       </div>
+
     </div>
+    </ReviewContext.Provider>
   )
 }

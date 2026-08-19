@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Block, Turn } from '../../../shared/types.js'
 import { CopyButton } from './Copy.js'
 import { Markdown } from './Markdown.js'
+import { ReviewContext, docTitle, useReview } from '../review.js'
 
 /** Compact one-line summary of a tool call, for the collapsed header. */
 function toolSummary(name: string, input: Record<string, unknown>): string {
@@ -152,6 +153,7 @@ export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElem
   const work = turn.blocks.filter((b) => b.kind === 'tool' || b.kind === 'thinking')
   const said = turn.blocks.filter((b) => b.kind === 'text' || b.kind === 'image')
   const answer = answerText(turn, streamBuffer)
+  const openReview = useReview()
 
   return (
     <div className={`msg msg-${turn.role}`}>
@@ -164,10 +166,15 @@ export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElem
           {/* The work comes first because it happened first, but folded. */}
           {!isUser && <Activity blocks={work} />}
 
-          {said.map((b, i) =>
-            b.kind === 'text' ? <Markdown key={i} source={b.text} /> : <ImageBlockView key={i} block={b} />,
-          )}
-          {streamBuffer && <Markdown source={streamBuffer} />}
+          {/* No Review button while the turn is still running: a fenced block
+              renders as soon as its opening fence arrives, so reviewing here
+              would snapshot half a document. */}
+          <ReviewContext.Provider value={turn.streaming ? null : openReview}>
+            {said.map((b, i) =>
+              b.kind === 'text' ? <Markdown key={i} source={b.text} /> : <ImageBlockView key={i} block={b} />,
+            )}
+            {streamBuffer && <Markdown source={streamBuffer} />}
+          </ReviewContext.Provider>
           {turn.streaming && <span className="caret-blink" />}
         </div>
 
@@ -175,6 +182,14 @@ export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElem
         {!isUser && answer && (
           <div className="msg-actions">
             <CopyButton text={() => answer} label="Copy answer" />
+            {openReview && !turn.streaming && (
+              <button
+                className="msg-action"
+                onClick={() => openReview(docTitle(answer, 'Answer'), answer)}
+              >
+                Review
+              </button>
+            )}
           </div>
         )}
       </div>

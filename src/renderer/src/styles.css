@@ -1017,3 +1017,156 @@ kbd {
 .theme-row { position: relative; }
 .theme-caret { margin-left: auto; opacity: 0.6; font-size: 11px; }
 .theme-submenu { position: absolute; left: 100%; top: -5px; margin-left: 6px; z-index: 61; }
+
+/* ---- document review --------------------------------------------------- */
+/* Reader sits below the 38px titlebar so the window drag region and traffic
+   lights stay reachable. Colours come from the theme variables only, so all
+   flavors - including the light one - follow without an override block. */
+
+.reader {
+  position: fixed; top: 38px; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: flex; flex-direction: column; background: var(--bg);
+}
+/* Its own window: nothing above it, so the header carries the traffic lights
+   (titleBarStyle is hiddenInset) and has to leave room for them. */
+.reader.is-standalone { top: 0; }
+.reader.is-standalone .reader-head {
+  padding: 10px 14px 8px 92px; -webkit-app-region: drag;
+}
+.reader.is-standalone .reader-head button,
+.reader.is-standalone .reader-head .copy-btn { -webkit-app-region: no-drag; }
+
+.reader-boot {
+  display: flex; align-items: center; justify-content: center; height: 100vh;
+  font-size: 12px; color: var(--text-faint); padding: 24px; text-align: center;
+}
+.reader-boot.is-error { color: var(--err, #f0a58f); }
+.reader-head {
+  display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+  padding: 8px 14px; background: var(--bg-1); border-bottom: 1px solid var(--line);
+}
+.reader-title {
+  font-weight: 600; font-size: 13px; letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.reader-count { font-size: 11px; color: var(--text-faint); margin-right: auto; white-space: nowrap; }
+.reader-actions { display: flex; align-items: center; gap: 8px; }
+.reader-btn {
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--text);
+  border-radius: 6px; padding: 3px 11px; font-size: 12px; white-space: nowrap;
+}
+.reader-btn:hover:not(:disabled) { border-color: var(--accent); }
+.reader-btn:disabled { opacity: 0.4; cursor: default; }
+.reader-btn.is-primary {
+  background: var(--accent); border-color: var(--accent); color: var(--bg);
+  font-weight: 600;
+}
+.reader-close {
+  background: none; border: none; color: var(--text-faint);
+  font-size: 13px; padding: 2px 4px;
+}
+.reader-close:hover { color: var(--text); }
+
+.reader-body { display: flex; flex: 1; min-height: 0; }
+.reader-doc {
+  flex: 1; min-width: 0; overflow-y: auto;
+  padding: 34px calc(50% - 360px) 120px;
+}
+.reader-doc .md-block { max-width: 720px; }
+/* Chrome, not document. Selecting a code block otherwise puts "BASH 3 lines"
+   into the quote the agent is asked to act on. */
+.reader-doc .code-head { user-select: none; }
+.reader-doc .md h1 { font-size: 26px; margin: 26px 0 12px; }
+.reader-doc .md h2 { font-size: 19px; margin: 24px 0 10px; }
+.reader-doc .md h3 { font-size: 15px; margin: 20px 0 8px; }
+.reader-doc .md p, .reader-doc .md li { font-size: 14.5px; line-height: 1.7; }
+.reader-doc .md-block:first-child > .md > :first-child { margin-top: 0; }
+
+/* A commented span, the way Docs does it. Deliberately not derived from
+   --warn: at a readable alpha that theme colour goes brown or orange, and the
+   ask was yellow. Dark text is forced because the fill is light in every theme,
+   including the ones with light text. */
+.rc-mark {
+  background: rgba(253, 224, 71, 0.55);
+  color: #14151a; border-radius: 2px; cursor: pointer;
+  box-shadow: 0 0 0 1px rgba(253, 224, 71, 0.35);
+}
+.rc-mark:hover { background: rgba(253, 224, 71, 0.72); }
+.rc-mark.is-active {
+  background: rgba(250, 204, 21, 0.92);
+  box-shadow: 0 0 0 2px rgba(250, 204, 21, 0.45);
+}
+/* The fill sits behind inline formatting, so keep those readable on it too. */
+.rc-mark code, .rc-mark strong, .rc-mark em, .rc-mark a { color: #14151a; }
+
+.rc-status {
+  font-size: 11px; line-height: 1.5; color: var(--text-faint);
+  padding: 8px 10px; margin-bottom: 10px;
+  background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px;
+}
+.rc-status.is-error { color: #f0a58f; border-color: #6b352c; background: #38201a; }
+
+.rc-reply {
+  margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-2); overflow: hidden;
+}
+.rc-reply-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 10px; border-bottom: 1px solid var(--line);
+  font-size: 11px; font-weight: 600; color: var(--text-faint);
+}
+.rc-reply-body { padding: 8px 10px; font-size: 12px; line-height: 1.55; max-height: 46vh; overflow-y: auto; }
+.rc-reply-body .md :first-child { margin-top: 0; }
+.rc-reply-body .md :last-child { margin-bottom: 0; }
+
+.reader-rail {
+  width: 300px; flex-shrink: 0; overflow-y: auto;
+  padding: 14px 12px 120px; background: var(--bg-1);
+  border-left: 1px solid var(--line);
+}
+.rc-empty { font-size: 12px; color: var(--text-faint); line-height: 1.6; padding: 4px 2px; }
+
+.rc-card {
+  background: var(--bg-2); border: 1px solid var(--line); border-left: 3px solid var(--line);
+  border-radius: 7px; padding: 9px 10px; margin-bottom: 9px;
+}
+.rc-card:hover { border-color: var(--accent); }
+.rc-card.is-active, .rc-card.is-draft { border-left-color: var(--warn); }
+.rc-quote {
+  font-size: 11px; color: var(--text-faint); line-height: 1.5;
+  border-left: 2px solid var(--line); padding-left: 7px; margin-bottom: 6px;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.rc-body { font-size: 12.5px; line-height: 1.55; white-space: pre-wrap; }
+.rc-input {
+  width: 100%; min-height: 58px; resize: vertical; box-sizing: border-box;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 5px;
+  color: var(--text); font-family: var(--sans); font-size: 12.5px;
+  line-height: 1.5; padding: 6px 7px;
+}
+.rc-input:focus { outline: none; border-color: var(--accent); }
+.rc-card-actions { display: flex; justify-content: flex-end; gap: 7px; margin-top: 7px; }
+.rc-cancel, .rc-save {
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--text-dim);
+  border-radius: 5px; padding: 2px 9px; font-size: 11px;
+}
+.rc-cancel:hover { color: var(--text); border-color: var(--accent); }
+.rc-save { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+.rc-save:disabled { opacity: 0.4; cursor: default; }
+
+.rc-rounds { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+.rc-round > summary {
+  font-size: 11px; color: var(--text-faint); cursor: pointer;
+  padding: 3px 0; list-style-position: inside;
+}
+.rc-round > summary:hover { color: var(--text-dim); }
+.rc-card.is-past { opacity: 0.55; border-left-color: var(--line); margin-top: 7px; }
+.rc-card.is-past:hover { border-color: var(--line); }
+
+/* Entry points into the reader. */
+.code-review, .msg-action {
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--text-dim);
+  border-radius: 5px; padding: 1px 7px; font-size: 10.5px; white-space: nowrap;
+}
+.code-review:hover, .msg-action:hover { color: var(--text); border-color: var(--accent); }
+.msg-actions { gap: 6px; }

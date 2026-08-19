@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
-import { marked, type Tokens } from 'marked'
+import { marked, type Token, type Tokens } from 'marked'
 import hljs from 'highlight.js'
+import { docTitle, isMarkdownLang, useReview } from '../review.js'
 
 marked.setOptions({ gfm: true, breaks: false })
 
@@ -17,6 +18,11 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }): React.React
   }, [code, lang])
 
   const lines = code.split('\n').length
+  const openReview = useReview()
+  // A fenced markdown block is the one place the app shows markdown as source.
+  // That is what Claude emits when you ask it for a document, so it is the
+  // main way into the reader.
+  const reviewable = openReview && isMarkdownLang(lang) && code.trim().length > 0
 
   return (
     <div className="code-block">
@@ -25,6 +31,11 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }): React.React
         <span className="code-meta">
           {lines} {lines === 1 ? 'line' : 'lines'}
         </span>
+        {reviewable && (
+          <button className="code-review" onClick={() => openReview(docTitle(code), code)}>
+            Review
+          </button>
+        )}
       </div>
       <pre>
         <code className="hljs" dangerouslySetInnerHTML={{ __html: html }} />
@@ -67,12 +78,54 @@ function TableBlock({ token }: { token: Tokens.Table }): React.ReactElement {
   )
 }
 
+function renderToken(token: Token): React.ReactNode {
+  if (token.type === 'code') {
+    const t = token as Tokens.Code
+    return <CodeBlock code={t.text} lang={t.lang} />
+  }
+  if (token.type === 'table') {
+    return <TableBlock token={token as Tokens.Table} />
+  }
+  const html = marked.parse(token.raw, { async: false })
+  return <div className="md" dangerouslySetInnerHTML={{ __html: html }} />
+}
+
+/**
+ * The top-level tokens a reader can hang a comment on.
+ *
+ * `space` tokens are dropped because they would render as empty blocks and
+ * shift every index after them. The reader's stored block indices are indices
+ * into this filtered list, so it has to be the same filter on both sides.
+ */
+export function anchorableTokens(source: string): Token[] {
+  return marked.lexer(source).filter((t) => t.type !== 'space')
+}
+
+interface MarkdownProps {
+  source: string
+  /**
+   * Emit one element per top-level token, each tagged with its index, so a
+   * comment can be anchored to it. Only the reader wants this: the normal path
+   * coalesces prose into shared chunks, which is cheaper and is what every
+   * message in the transcript has always rendered as.
+   */
+  anchored?: boolean
+}
+
 /**
  * Renders markdown by walking top-level tokens rather than dumping one HTML
  * string, so code blocks and tables can carry their own copy controls.
  */
-export function Markdown({ source }: { source: string }): React.ReactElement {
+export function Markdown({ source, anchored }: MarkdownProps): React.ReactElement {
   const parts = useMemo(() => {
+    if (anchored) {
+      return anchorableTokens(source).map((token, i) => (
+        <div className="md-block" data-block={i} key={`block-${i}`}>
+          {renderToken(token)}
+        </div>
+      ))
+    }
+
     const tokens = marked.lexer(source)
     const out: React.ReactNode[] = []
     let buffer: string[] = []
@@ -98,7 +151,7 @@ export function Markdown({ source }: { source: string }): React.ReactElement {
     })
     flush('md-tail')
     return out
-  }, [source])
+  }, [source, anchored])
 
   return <>{parts}</>
 }

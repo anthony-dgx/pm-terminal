@@ -74,6 +74,11 @@ export interface DeskApi {
     claudePath: string | null
   }>
 
+  /** Open a document in its own window, tied to the calling conversation. */
+  readerOpen(doc: { clientId: string; title: string; snapshot: string }): Promise<number>
+  /** Which document this window was opened on; null in the main window. */
+  readerDoc(): Promise<{ clientId: string; title: string; snapshot: string } | null>
+
   onEvent(cb: (clientId: string, e: MainEvent) => void): () => void
 }
 
@@ -117,6 +122,9 @@ const api: DeskApi = {
   openPath: (path) => ipcRenderer.invoke('shell:openPath', path),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   env: () => ipcRenderer.invoke('env:info'),
+
+  readerOpen: (doc) => ipcRenderer.invoke('reader:open', doc),
+  readerDoc: () => ipcRenderer.invoke('reader:doc'),
 
   onEvent: (cb) => {
     const listener = (
