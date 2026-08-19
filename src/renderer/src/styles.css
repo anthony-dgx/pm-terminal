@@ -1200,7 +1200,18 @@ kbd {
   padding: 8px 10px; margin-bottom: 10px;
   background: var(--bg-2); border: 1px solid var(--line); border-radius: 8px;
 }
-.rc-status.is-error { color: #f0a58f; border-color: #6b352c; background: #38201a; }
+/* Derived, not hardcoded dark: latte is light, and a fixed dark box on it is the
+   bug the catppuccin overrides above exist to undo. Mixing against --bg means
+   every theme, light or dark, follows without an override of its own.
+
+   Plain var(--err) on the tint measures 3.2:1 on latte and 3.1:1 on high noon,
+   so the ink is pulled toward --text: 4.75 / 6.15 / 8.2 on latte, high noon and
+   mocha. Still reads as red, and legible on a light theme. */
+.rc-status.is-error {
+  color: color-mix(in srgb, var(--err) 55%, var(--text));
+  border-color: color-mix(in srgb, var(--err) 45%, var(--bg));
+  background: color-mix(in srgb, var(--err) 12%, var(--bg));
+}
 
 .rc-reply {
   margin-bottom: 12px; border: 1px solid var(--line); border-radius: 8px;
