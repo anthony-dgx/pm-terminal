@@ -26,7 +26,9 @@ If you are happy in the terminal and none of that bothers you, you do not need t
 
 **Chat with Claude and actually read it.** Messages appear as a conversation with avatars and
 bubbles. Each reply has a **Copy answer** button that copies the reply text only, without the tool
-output around it.
+output around it. When you asked for something to send on and Claude fenced it, the button becomes
+**Copy draft** and copies just that - not "here is a version you could send" or the offer to adjust
+the tone. **Copy all** is next to it for the whole reply.
 
 **See what the agent did, only when you care.** Every reply folds its work behind one line, like
 `3 steps · Bash, Read · 4.2s`. Click to see the tool calls, their inputs and their full output.
@@ -44,8 +46,17 @@ you left off, on the model it was already using.
 carries a **Review** button - on a fenced markdown block, or on the whole answer. It opens the
 document in **its own window**, formatted, with a comment rail down the side.
 
+The button only appears on an actual document, meaning something with a heading and a few blocks
+under it. An ordinary reply does not get one, however long it runs.
+
 - Select any text and a comment box appears in the rail. `Cmd+Enter` commits it. The text turns
   yellow, and clicking either the highlight or the card links the pair.
+- **Edit any paragraph yourself.** Hover a block and click **Edit** to change its markdown in
+  place. `Cmd+Enter` applies, `Esc` discards. Comments below the edit follow it, so their
+  highlights stay on the right text. Editing is off while a round is in flight, because the
+  reply replaces the whole document.
+- Your comments are sent **with the current document**, edits included, so Claude rewrites what
+  you are actually looking at rather than the version it last wrote.
 - **Ready for changes** sends every comment at once and the rewritten document comes back **into
   that window**, ready for the next round. You never go back to the chat.
 - Earlier rounds stay in the rail, folded, so you can see what you already asked for.
@@ -54,6 +65,16 @@ document in **its own window**, formatted, with a comment rail down the side.
 
 Comments go into the conversation the document came from, so the transcript keeps the whole history.
 They live in memory for the session and are not saved to disk.
+
+**Open a markdown file in the same reader.** When Claude reads a `.md` file, that tool call gets an
+**Open** button. Nothing opens on its own, because Claude reads markdown all the time and for its
+own reasons.
+
+A document opened from a file is a view on that file. Your inline edits save straight to it, and so
+does a round of **Ready for changes**, so the file and the window never disagree. The header says
+which file it is writing to. A document that came out of the chat still edits the same way - the
+change stays in the window and rides into the next round with your comments - it just has no file
+to be saved to.
 
 **Sign in to an MCP server.** Type `/mcp` and the panel opens on your servers, worst first. Every
 server in the current directory gets a **Sign in** button, whatever its status, disabled only on the
@@ -152,7 +173,10 @@ src/main/       Node side. Owns the SDK sessions and all filesystem reads.
   groups.ts     Session groups.       prefs.ts      Window, theme, last-used state.
   profiles.ts   Agent profiles, including the built-ins.
   server.ts     Loopback static server for the renderer (see below).
-  index.ts      Windows and the IPC surface.
+  index.ts      Windows and the IPC surface. Also the reader's file access:
+                reads are limited to markdown, and a write has to match the path
+                the calling window was opened on, so a review window can save
+                its own document and nothing else.
 src/preload/    contextBridge. The renderer gets no Node access.
 src/renderer/   React 19 UI. Themes are CSS variable swaps on a data-theme attribute.
 src/shared/     Types shared across the boundary.

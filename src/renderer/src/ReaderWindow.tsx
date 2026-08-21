@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Reader } from './components/Reader.js'
-import { composeReviewPrompt, docTitle, type ReviewComment, type ReviewRound } from './review.js'
+import {
+  baseName,
+  composeReviewPrompt,
+  docTitle,
+  type ReviewComment,
+  type ReviewRound,
+} from './review.js'
 import { desk } from './lib/api.js'
 import type { MainEvent, Turn } from '../../shared/types.js'
 
@@ -82,6 +88,9 @@ export function ReaderWindow(): React.ReactElement {
   const [clientId, setClientId] = useState<string | null>(null)
   const [title, setTitle] = useState('Document')
   const [snapshot, setSnapshot] = useState<string | null>(null)
+  /** Set only for a document opened off disk. Edits go back to this file. */
+  const [path, setPath] = useState<string | undefined>(undefined)
+  const [saveNote, setSaveNote] = useState<string | null>(null)
   const [comments, setComments] = useState<ReviewComment[]>([])
   const [rounds, setRounds] = useState<ReviewRound[]>([])
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
@@ -93,6 +102,29 @@ export function ReaderWindow(): React.ReactElement {
   const pending = useRef(false)
   const snapRef = useRef('')
   snapRef.current = snapshot ?? ''
+  const pathRef = useRef<string | undefined>(undefined)
+  pathRef.current = path
+
+  /**
+   * Write the document back to the file it came from.
+   *
+   * A no-op for a document that came out of the chat, which has no file. That
+   * document still edits - the change lives in this window and rides into the
+   * next round with your comments - it just has nowhere to be saved.
+   */
+  const save = useCallback((text: string): void => {
+    const p = pathRef.current
+    if (!p) return
+    desk
+      .writeMarkdown(p, text)
+      .then(() => setSaveNote(`Saved to ${baseName(p)}`))
+      .catch((err: Error) => {
+        // IPC wraps the rejection in its own frame; the sentence the main
+        // process wrote is the last one and the only useful part.
+        const reason = err.message.split(/Error:\s*/).pop() ?? err.message
+        setSaveNote(`Could not save: ${reason}`)
+      })
+  }, [])
 
   useEffect(() => {
     void (async () => {
@@ -104,6 +136,8 @@ export function ReaderWindow(): React.ReactElement {
       setClientId(doc.clientId)
       setTitle(doc.title)
       setSnapshot(doc.snapshot)
+      setPath(doc.path)
+      if (doc.path) setSaveNote(`Editing ${baseName(doc.path)}`)
       // The window title, and what the debugger targets, both come from here.
       document.title = `Review - ${doc.title}`
       const env = await desk.env()
@@ -138,23 +172,30 @@ export function ReaderWindow(): React.ReactElement {
         return
       }
       setSnapshot(next)
+      // A file-backed document is a view on the file, so a round that rewrites
+      // it lands on disk too. Leaving the file at the pre-review version would
+      // mean the window and the file quietly disagree.
+      save(next)
       const heading = docTitle(next, title)
       setTitle(heading)
       document.title = `Review - ${heading}`
       setReply(null)
       setStatus({ kind: 'idle' })
     })
-  }, [clientId, title])
+  }, [clientId, title, save])
 
   const send = useCallback(
     (): void => {
-      if (!clientId || !comments.length) return
+      if (!clientId || !comments.length || snapshot === null) return
       setRounds((r) => [...r, { at: new Date().toISOString(), comments }])
       setComments([])
       setReply(null)
       setStatus({ kind: 'waiting' })
       pending.current = true
-      desk.send(clientId, composeReviewPrompt(comments)).catch((err: Error) => {
+      // The snapshot goes with the comments. It is not safe to assume the agent
+      // still has this text: it may have been read off disk rather than written
+      // in the chat, and either way it may have been edited here since.
+      desk.send(clientId, composeReviewPrompt(comments, snapshot)).catch((err: Error) => {
         pending.current = false
         setStatus({
           kind: 'error',
@@ -164,7 +205,7 @@ export function ReaderWindow(): React.ReactElement {
         })
       })
     },
-    [clientId, comments],
+    [clientId, comments, snapshot],
   )
 
   if (status.kind === 'error' && snapshot === null) {
@@ -174,9 +215,15 @@ export function ReaderWindow(): React.ReactElement {
 
   return (
     <Reader
-      doc={{ title, snapshot, comments }}
+      doc={{ title, snapshot, comments, path }}
       rounds={rounds}
       onChange={setComments}
+      onEdit={(next, moved) => {
+        setSnapshot(next)
+        setComments(moved)
+        save(next)
+      }}
+      saveNote={saveNote}
       onSend={send}
       onClose={() => window.close()}
       busy={status.kind === 'waiting'}

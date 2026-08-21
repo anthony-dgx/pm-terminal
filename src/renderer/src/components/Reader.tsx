@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Markdown } from './Markdown.js'
+import { Markdown, blockSources, replaceBlock } from './Markdown.js'
 import { CopyButton } from './Copy.js'
 import { clearMarks, markQuote } from '../lib/highlight.js'
 import { ReviewContext, type ReviewComment, type ReviewDoc, type ReviewRound } from '../review.js'
@@ -41,6 +41,14 @@ interface ReaderProps {
    */
   reply?: string | null
   onDismissReply?: () => void
+  /**
+   * Apply an inline edit: the whole document with one block rewritten, and the
+   * comments with their anchors moved to match. Absent makes the document
+   * read-only, which is what a caller that has nowhere to put an edit wants.
+   */
+  onEdit?: (snapshot: string, comments: ReviewComment[]) => void
+  /** Where the last edit went, or why it did not. Shown in the header. */
+  saveNote?: string | null
 }
 
 export function Reader({
@@ -55,11 +63,16 @@ export function Reader({
   error,
   reply,
   onDismissReply,
+  onEdit,
+  saveNote,
 }: ReaderProps): React.ReactElement {
   const docRef = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [body, setBody] = useState('')
   const [active, setActive] = useState<string | null>(null)
+  /** The block being edited, by the same index comments are anchored to. */
+  const [editing, setEditing] = useState<number | null>(null)
+  const [editText, setEditText] = useState('')
 
   const comments = doc.comments
   const ordered = useMemo(
@@ -76,6 +89,8 @@ export function Reader({
       if (!root) return
       const sel = document.getSelection()
       if (!sel || sel.isCollapsed || sel.rangeCount === 0) return
+      // Selecting inside the inline editor is editing, not commenting.
+      if (document.activeElement instanceof HTMLTextAreaElement) return
       const quote = sel.toString().replace(/\s+/g, ' ').trim()
       if (!quote) return
       const block = blockOf(sel.getRangeAt(0).startContainer, root)
@@ -100,8 +115,10 @@ export function Reader({
       if (block) markQuote(block, c.quote, c.id)
     }
     // Snapshot is in the deps because a rewrite replaces the blocks underneath
-    // these marks, and the new text needs marking from scratch.
-  }, [ordered, doc.snapshot])
+    // these marks, and the new text needs marking from scratch. `editing` is
+    // there for the same reason at one block's scale: entering or leaving the
+    // editor swaps that block's DOM out, taking its marks with it.
+  }, [ordered, doc.snapshot, editing])
 
   useEffect(() => {
     const root = docRef.current
@@ -111,13 +128,17 @@ export function Reader({
     })
   }, [active, ordered])
 
+  // Escape backs out of the editor before it backs out of the window, so a
+  // stray keypress mid-edit does not throw the whole document away.
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') onClose()
+      if (e.key !== 'Escape') return
+      if (editing !== null) setEditing(null)
+      else onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, editing])
 
   const commit = useCallback((): void => {
     if (!draft || !body.trim()) return
@@ -146,6 +167,84 @@ export function Reader({
       ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }, [])
 
+  const startEdit = useCallback((index: number, source: string): void => {
+    setEditing(index)
+    setEditText(source.replace(/\s*$/, ''))
+    // Otherwise the selection that put the cursor in the block is still live,
+    // and the comment draft it raised sits in the rail over the editor.
+    setDraft(null)
+    document.getSelection()?.removeAllRanges()
+  }, [])
+
+  const commitEdit = useCallback((): void => {
+    if (editing === null || !onEdit) return
+    const before = blockSources(doc.snapshot).length
+    const next = replaceBlock(doc.snapshot, editing, editText)
+    // Editing a block can split it in two or merge it away, which moves every
+    // block after it. Comments anchored past the edit have to move by the same
+    // amount or their highlights land on the wrong paragraph. Comments on the
+    // edited block itself keep their index: the quote may no longer be in the
+    // text, in which case the highlight is skipped and the card stays in the
+    // rail, which is the same degradation the reader already accepts.
+    const shift = blockSources(next).length - before
+    const moved = shift
+      ? comments.map((c) => (c.blockIndex > editing ? { ...c, blockIndex: c.blockIndex + shift } : c))
+      : comments
+    setEditing(null)
+    onEdit(next, moved)
+  }, [editing, editText, onEdit, doc.snapshot, comments])
+
+  const renderBlock = useCallback(
+    (index: number, source: string, rendered: React.ReactNode): React.ReactNode => {
+      // No editing while a round is in flight. The reply replaces the whole
+      // document, so anything typed in the meantime is lost the moment it lands.
+      if (!onEdit || busy) return rendered
+      if (index !== editing) {
+        return (
+          <>
+            {rendered}
+            <button
+              className="md-edit"
+              title="Edit this block"
+              onClick={() => startEdit(index, source)}
+            >
+              Edit
+            </button>
+          </>
+        )
+      }
+      return (
+        <div className="md-editor">
+          {/* The block's markdown source, not its rendered text. Editing the
+              rendering would need a way back to markdown that does not exist. */}
+          <textarea
+            className="md-editor-input"
+            autoFocus
+            value={editText}
+            rows={Math.min(24, editText.split('\n').length + 1)}
+            onChange={(e) => setEditText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                commitEdit()
+              }
+            }}
+          />
+          <div className="md-editor-actions">
+            <span className="md-editor-hint">Cmd+Enter to apply, Esc to discard</span>
+            <button className="rc-cancel" onClick={() => setEditing(null)}>
+              Cancel
+            </button>
+            <button className="rc-save" onClick={commitEdit}>
+              Apply
+            </button>
+          </div>
+        </div>
+      )
+    },
+    [editing, editText, onEdit, busy, startEdit, commitEdit],
+  )
+
   const onDocClick = useCallback((e: React.MouseEvent): void => {
     const mark = (e.target as HTMLElement).closest<HTMLElement>('mark.rc-mark')
     if (mark?.dataset.commentId) setActive(mark.dataset.commentId)
@@ -164,6 +263,7 @@ export function Reader({
         <div className="reader-count">
           {n} comment{n === 1 ? '' : 's'}
         </div>
+        {saveNote && <div className="reader-save">{saveNote}</div>}
         <div className="reader-actions">
           <CopyButton text={() => doc.snapshot} label="Copy" />
           <button className="reader-btn is-primary" disabled={!n || busy} onClick={onSend}>
@@ -180,7 +280,7 @@ export function Reader({
           {/* Null provider so a fenced markdown block inside the document does
               not offer to open a second reader on top of this one. */}
           <ReviewContext.Provider value={null}>
-            <Markdown source={doc.snapshot} anchored />
+            <Markdown source={doc.snapshot} anchored renderBlock={renderBlock} />
           </ReviewContext.Provider>
         </div>
 
@@ -267,7 +367,10 @@ export function Reader({
           ))}
 
           {!n && !draft && (
-            <div className="rc-empty">Select text in the document to comment on it.</div>
+            <div className="rc-empty">
+              Select text in the document to comment on it.
+              {onEdit && ' Hover a paragraph and click Edit to change it yourself.'}
+            </div>
           )}
 
           {rounds.length > 0 && (

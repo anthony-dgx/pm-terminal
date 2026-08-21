@@ -1178,6 +1178,47 @@ kbd {
 .reader-doc .md p, .reader-doc .md li { font-size: 14.5px; line-height: 1.7; }
 .reader-doc .md-block:first-child > .md > :first-child { margin-top: 0; }
 
+/* Inline editing. The Edit button is anchored to the block rather than floating
+   near the cursor, so it cannot land on top of the text it edits. */
+.reader-doc .md-block { position: relative; }
+.md-edit {
+  position: absolute; top: 2px; right: -8px; opacity: 0;
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--text-faint);
+  border-radius: 5px; padding: 1px 7px; font-size: 10.5px;
+  user-select: none; transition: opacity 0.12s;
+}
+.md-block:hover .md-edit, .md-edit:focus-visible { opacity: 1; }
+.md-edit:hover { color: var(--text); border-color: var(--accent); }
+
+.md-editor { max-width: 720px; }
+.md-editor-input {
+  width: 100%; resize: vertical; box-sizing: border-box;
+  background: var(--bg-2); border: 1px solid var(--accent); color: var(--text);
+  border-radius: 7px; padding: 10px 12px;
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12.5px; line-height: 1.6;
+}
+.md-editor-input:focus { outline: none; }
+.md-editor-actions {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin-top: 6px;
+}
+.md-editor-hint { margin-right: auto; font-size: 10.5px; color: var(--text-faint); }
+
+/* Where the last edit went. Sits next to the comment count, quietly. */
+.reader-save {
+  font-size: 11px; color: var(--text-faint); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 260px;
+}
+
+/* Opens a markdown file the agent read. Chrome inside a tool header, so it must
+   not inherit the row's click-to-expand. */
+.tool-open {
+  background: var(--bg-3); border: 1px solid var(--line); color: var(--text-faint);
+  border-radius: 5px; padding: 1px 7px; font-size: 10.5px; margin-left: 6px;
+  flex: none;
+}
+.tool-open:hover { color: var(--text); border-color: var(--accent); }
+
 /* A commented span, the way Docs does it. Deliberately not derived from
    --warn: at a readable alpha that theme colour goes brown or orange, and the
    ask was yellow. Dark text is forced because the fill is light in every theme,
@@ -1276,6 +1317,9 @@ kbd {
   border-radius: 5px; padding: 1px 7px; font-size: 10.5px; white-space: nowrap;
 }
 .code-review:hover, .msg-action:hover { color: var(--text); border-color: var(--accent); }
+/* The fallback next to "Copy draft". Present, but not competing with it. */
+.copy-btn.is-quiet { opacity: 0.6; }
+.copy-btn.is-quiet:hover { opacity: 1; }
 .msg-actions { gap: 6px; }
 
 /* ---- mcp sign-in ----

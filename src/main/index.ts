@@ -1,6 +1,7 @@
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron'
 import { homedir } from 'node:os'
-import { join, dirname } from 'node:path'
+import { join, dirname, resolve } from 'node:path'
+import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { AgentSession, resolveClaudeExecutable, type SessionOptions } from './agent.js'
 import { configSummary, readMcpFromDisk, readPlugins, readSkillsFromDisk } from './inspect.js'
@@ -55,6 +56,18 @@ interface ReaderDoc {
   clientId: string
   title: string
   snapshot: string
+  /**
+   * The file on disk this was read from, when it was read from one. Doubles as
+   * the write permission for that window: `file:write` accepts this path and
+   * nothing else, so a review window can save the document it is showing and
+   * cannot be talked into writing anywhere else.
+   */
+  path?: string
+}
+
+/** The only files the reader will read or write. It renders nothing else. */
+function isMarkdownPath(p: string): boolean {
+  return /\.(md|markdown|mdx)$/i.test(p.trim())
 }
 
 interface WindowOptions {
@@ -203,6 +216,31 @@ function registerIpc(): void {
   ipcMain.handle('reader:doc', (event) => {
     const win = windowOf(event)
     return win ? (readerDocs.get(win.id) ?? null) : null
+  })
+
+  /** A markdown file, for opening it in the reader. */
+  ipcMain.handle('file:readMarkdown', async (_e, path: string) => {
+    if (!isMarkdownPath(path)) throw new Error('The reader only opens markdown files.')
+    return await readFile(path, 'utf8')
+  })
+
+  /**
+   * Save an edited document back to the file it came from.
+   *
+   * Deliberately narrow. The path has to match the one the calling window was
+   * opened on, so this cannot be used as a general write - a review window can
+   * only ever save its own document, over the file the user already opened.
+   */
+  ipcMain.handle('file:writeMarkdown', async (event, path: string, text: string) => {
+    const win = windowOf(event)
+    const doc = win ? readerDocs.get(win.id) : undefined
+    if (!doc?.path || resolve(doc.path) !== resolve(path)) {
+      throw new Error('This window cannot write to that file.')
+    }
+    await writeFile(path, text, 'utf8')
+    // The window's own record moves with it, so a later save still matches and
+    // a reopen does not resurrect the pre-edit text.
+    readerDocs.set(win!.id, { ...doc, snapshot: text })
   })
 
   ipcMain.handle('session:send', (_e, clientId: string, text: string, images?: Attachment[]) => {

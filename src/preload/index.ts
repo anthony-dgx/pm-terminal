@@ -84,9 +84,13 @@ export interface DeskApi {
   }>
 
   /** Open a document in its own window, tied to the calling conversation. */
-  readerOpen(doc: { clientId: string; title: string; snapshot: string }): Promise<number>
+  readerOpen(doc: { clientId: string; title: string; snapshot: string; path?: string }): Promise<number>
   /** Which document this window was opened on; null in the main window. */
-  readerDoc(): Promise<{ clientId: string; title: string; snapshot: string } | null>
+  readerDoc(): Promise<{ clientId: string; title: string; snapshot: string; path?: string } | null>
+  /** Read a markdown file, to open it in the reader. */
+  readMarkdown(path: string): Promise<string>
+  /** Save an edited document. Only to the file this window was opened on. */
+  writeMarkdown(path: string, text: string): Promise<void>
 
   onEvent(cb: (clientId: string, e: MainEvent) => void): () => void
 }
@@ -143,6 +147,8 @@ const api: DeskApi = {
 
   readerOpen: (doc) => ipcRenderer.invoke('reader:open', doc),
   readerDoc: () => ipcRenderer.invoke('reader:doc'),
+  readMarkdown: (path) => ipcRenderer.invoke('file:readMarkdown', path),
+  writeMarkdown: (path, text) => ipcRenderer.invoke('file:writeMarkdown', path, text),
 
   onEvent: (cb) => {
     const listener = (

@@ -387,8 +387,8 @@ export function App(): React.ReactElement {
    * document returns into that window.
    */
   const openReview = useCallback(
-    (title: string, snapshot: string) => {
-      void desk.readerOpen({ clientId: activeId, title, snapshot })
+    (title: string, snapshot: string, path?: string) => {
+      void desk.readerOpen({ clientId: activeId, title, snapshot, path })
     },
     [activeId],
   )

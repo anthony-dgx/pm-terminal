@@ -101,6 +101,38 @@ export function anchorableTokens(source: string): Token[] {
   return marked.lexer(source).filter((t) => t.type !== 'space')
 }
 
+/** The markdown source behind each anchorable block, for editing it. */
+export function blockSources(source: string): string[] {
+  return anchorableTokens(source).map((t) => t.raw)
+}
+
+/**
+ * The document with one block's source swapped out.
+ *
+ * Rebuilt by re-joining every token's `raw`, which reproduces the input exactly
+ * - including the `space` tokens, which are skipped when counting but kept when
+ * writing, or the blocks would all run together.
+ */
+export function replaceBlock(source: string, index: number, text: string): string {
+  let seen = -1
+  return marked
+    .lexer(source)
+    .map((t) => {
+      if (t.type === 'space') return t.raw
+      seen++
+      if (seen !== index) return t.raw
+      // Put back exactly the trailing whitespace this block had, and never more.
+      // Where the separating blank line lives varies: usually in the `space`
+      // token after the block, but the last block of a document carries its own
+      // newline instead. Assuming one shape adds a blank line on every edit;
+      // assuming the other welds the edited block onto the next one, which then
+      // re-lexes as a single paragraph and shifts every index after it.
+      const tail = /\s*$/.exec(t.raw)?.[0] ?? ''
+      return text.replace(/\s*$/, '') + tail
+    })
+    .join('')
+}
+
 interface MarkdownProps {
   source: string
   /**
@@ -110,20 +142,29 @@ interface MarkdownProps {
    * message in the transcript has always rendered as.
    */
   anchored?: boolean
+  /**
+   * Takes over what goes inside one anchored block. The reader uses it to swap
+   * a block for a textarea over its own source, and to hang an edit affordance
+   * off the rest. Ignored unless `anchored`.
+   */
+  renderBlock?: (index: number, source: string, rendered: React.ReactNode) => React.ReactNode
 }
 
 /**
  * Renders markdown by walking top-level tokens rather than dumping one HTML
  * string, so code blocks and tables can carry their own copy controls.
  */
-export function Markdown({ source, anchored }: MarkdownProps): React.ReactElement {
+export function Markdown({ source, anchored, renderBlock }: MarkdownProps): React.ReactElement {
   const parts = useMemo(() => {
     if (anchored) {
-      return anchorableTokens(source).map((token, i) => (
-        <div className="md-block" data-block={i} key={`block-${i}`}>
-          {renderToken(token)}
-        </div>
-      ))
+      return anchorableTokens(source).map((token, i) => {
+        const rendered = renderToken(token)
+        return (
+          <div className="md-block" data-block={i} key={`block-${i}`}>
+            {renderBlock ? renderBlock(i, token.raw, rendered) : rendered}
+          </div>
+        )
+      })
     }
 
     const tokens = marked.lexer(source)
@@ -151,7 +192,7 @@ export function Markdown({ source, anchored }: MarkdownProps): React.ReactElemen
     })
     flush('md-tail')
     return out
-  }, [source, anchored])
+  }, [source, anchored, renderBlock])
 
   return <>{parts}</>
 }

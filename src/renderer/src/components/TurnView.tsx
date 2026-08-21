@@ -1,8 +1,17 @@
 import { useState } from 'react'
 import type { Block, Turn } from '../../../shared/types.js'
+import { desk } from '../lib/api.js'
 import { CopyButton } from './Copy.js'
 import { Markdown } from './Markdown.js'
-import { ReviewContext, docTitle, useReview } from '../review.js'
+import {
+  ReviewContext,
+  baseName,
+  docTitle,
+  draftOf,
+  isMarkdownPath,
+  looksLikeDocument,
+  useReview,
+} from '../review.js'
 
 /** Compact one-line summary of a tool call, for the collapsed header. */
 function toolSummary(name: string, input: Record<string, unknown>): string {
@@ -18,11 +27,37 @@ function toolSummary(name: string, input: Record<string, unknown>): string {
   return text.length > 110 ? `${text.slice(0, 110)}...` : text
 }
 
+/**
+ * The markdown file a tool call read, or null if it did not read one.
+ *
+ * Only `Read`, and only once it has come back. A file the agent failed to read
+ * has nothing to show, and offering to open it would just fail again.
+ */
+function readMarkdownPath(block: Extract<Block, { kind: 'tool' }>): string | null {
+  if (block.name !== 'Read' || block.result === undefined || block.isError) return null
+  const path = typeof block.input.file_path === 'string' ? block.input.file_path : ''
+  return path && isMarkdownPath(path) ? path : null
+}
+
 function ToolBlockView({ block }: { block: Extract<Block, { kind: 'tool' }> }): React.ReactElement {
   const [open, setOpen] = useState(false)
+  const [failed, setFailed] = useState(false)
   const result = block.result ?? ''
   const resultLines = result ? result.split('\n').length : 0
   const pending = block.result === undefined
+
+  const openReview = useReview()
+  const mdPath = readMarkdownPath(block)
+
+  // Read from disk rather than lifted out of the tool result, which arrives
+  // line-numbered and truncated. The file is the document; the tool output is a
+  // rendering of part of it.
+  const openFile = (path: string): void => {
+    void desk
+      .readMarkdown(path)
+      .then((text) => openReview?.(docTitle(text, baseName(path)), text, path))
+      .catch(() => setFailed(true))
+  }
 
   return (
     <div className={`tool ${block.isError ? 'is-error' : ''} ${pending ? 'is-pending' : ''}`}>
@@ -30,6 +65,20 @@ function ToolBlockView({ block }: { block: Extract<Block, { kind: 'tool' }> }): 
         <span className="tool-caret">{open ? '▾' : '▸'}</span>
         <span className="tool-name">{block.name}</span>
         <span className="tool-summary">{toolSummary(block.name, block.input)}</span>
+        {/* Never opened for you. Claude reads markdown constantly and for its
+            own reasons, so an automatic window would be mostly interruption. */}
+        {openReview && mdPath && (
+          <button
+            className="tool-open"
+            title={failed ? 'Could not read that file' : `Open ${baseName(mdPath)} in the reader`}
+            onClick={(e) => {
+              e.stopPropagation()
+              openFile(mdPath)
+            }}
+          >
+            {failed ? 'Unreadable' : 'Open'}
+          </button>
+        )}
         {pending ? (
           <span className="tool-status">running</span>
         ) : (
@@ -153,6 +202,9 @@ export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElem
   const work = turn.blocks.filter((b) => b.kind === 'tool' || b.kind === 'thinking')
   const said = turn.blocks.filter((b) => b.kind === 'text' || b.kind === 'image')
   const answer = answerText(turn, streamBuffer)
+  // Not while streaming: a fence is not closed until it is closed, so a draft
+  // detected mid-stream would be half a draft.
+  const draft = turn.streaming ? null : draftOf(answer)
   const openReview = useReview()
 
   return (
@@ -178,11 +230,27 @@ export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElem
           {turn.streaming && <span className="caret-blink" />}
         </div>
 
-        {/* One button, on the answer, which is the thing worth copying. */}
+        {/* Copy is scoped to the draft when there is one, because what you do
+            with a draft is paste it somewhere else, and Claude's framing around
+            it is not part of what you send. "Copy all" stays for the rest. */}
         {!isUser && answer && (
           <div className="msg-actions">
-            <CopyButton text={() => answer} label="Copy answer" />
-            {openReview && !turn.streaming && (
+            {draft ? (
+              <>
+                <CopyButton text={() => draft} label="Copy draft" title="Copy just the drafted text" />
+                <CopyButton
+                  text={() => answer}
+                  label="Copy all"
+                  title="Copy the whole reply, framing included"
+                  className="is-quiet"
+                />
+              </>
+            ) : (
+              <CopyButton text={() => answer} label="Copy answer" />
+            )}
+            {/* Only on a document. On an ordinary reply there is nothing to
+                review, and the button used to be on every single one. */}
+            {openReview && !turn.streaming && looksLikeDocument(answer) && (
               <button
                 className="msg-action"
                 onClick={() => openReview(docTitle(answer, 'Answer'), answer)}
