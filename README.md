@@ -84,6 +84,21 @@ retyping the same context. Choose one per session, or give a group a default. Tw
 
 Write your own in the Profiles tab.
 
+**Run a model that is not Claude.** The **Models** tab takes an Anthropic-compatible endpoint - a
+base URL, a token, and the model names it serves. Point one at a translating proxy such as LiteLLM
+or OpenRouter and the whole app runs GPT or Gemini instead, with your skills, plugins, MCP servers
+and permission rules all still in place, because the Claude Code binary underneath is unchanged.
+
+The token goes into the system keychain, not into the app's settings file, and never reaches the
+window. Your Anthropic credentials are not passed on: when a provider is active, the app clears any
+`ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` it inherited rather than forwarding it to an endpoint
+that did not issue it. A provider applies to sessions you start from then on; conversations already
+open stay on the endpoint they started with. Model names are remembered per provider, so a GPT name
+is not offered back to an Anthropic session.
+
+Claude Code picks a cheap model on its own for background work and asks for it by a Haiku name, so
+set **Small fast model** to your endpoint's equivalent or that work fails quietly.
+
 **Themes.** Default, [Catppuccin](https://catppuccin.com/) Mocha, and Cowboy. Cowboy also swaps the
 desk pet for a rodeo horse and the music for something more appropriate.
 
@@ -129,6 +144,17 @@ matters because some MCP servers are configured per directory.
 - **Signing in again on a working server signs it out first.** The CLI clears the existing tokens
   before it starts the new flow, so if you abandon the browser step the server is left signed out.
   The app warns you and waits for a confirmation before it starts.
+- **A managed machine ignores custom providers.** If your organisation ships
+  `managed-settings.json` with `ANTHROPIC_BASE_URL` in it, that policy outranks anything this app
+  can set, so every session goes to the corporate endpoint whatever provider you pick. The Models
+  tab says so when it detects one. There is no way around it from here, by design.
+- **A bad provider token gives no error.** The turn just never finishes. Check the token before
+  blaming the endpoint.
+- **`apiKeyHelper` is not cleared, because it is a setting rather than a variable.** The app can
+  strip inherited credentials out of the environment, and does, but if your `settings.json` or your
+  organisation's policy defines `apiKeyHelper`, the CLI may still call it and send whatever it mints
+  to your provider's endpoint. Whether it does when the base URL is overridden is not something this
+  app can determine. If you configure a provider and also use a key helper, check that first.
 - **Sessions running in a terminal** show up here, but only as of their last save, not live.
 - **Deleting a built-in profile does not stick.** It returns next launch. Edit it instead.
 
@@ -150,6 +176,7 @@ src/main/       Node side. Owns the SDK sessions and all filesystem reads.
   mcpAuth.ts    `claude mcp login` under a pty, for MCP OAuth sign-in.
   sessions.ts   ~/.claude/projects transcript listing, parsing and renaming.
   groups.ts     Session groups.       prefs.ts      Window, theme, last-used state.
+  providers.ts  Model providers: keychain token storage and the env mapping.
   profiles.ts   Agent profiles, including the built-ins.
   server.ts     Loopback static server for the renderer (see below).
   index.ts      Windows and the IPC surface.
@@ -158,7 +185,15 @@ src/renderer/   React 19 UI. Themes are CSS variable swaps on a data-theme attri
 src/shared/     Types shared across the boundary.
 ```
 
-Five decisions are load-bearing. Each one broke something real when it was missing:
+Six decisions are load-bearing. Each one broke something real when it was missing:
+
+- **A provider's `env` is merged over `process.env` before it reaches the SDK, and can unset.**
+  Passing `env` at all makes the SDK *replace* the child's environment rather than extend it, so
+  handing it the provider's few variables alone would spawn a `claude` with no PATH and no HOME.
+  The merge also has to be able to *remove* a variable, not just add one: a provider saved without
+  a token would otherwise inherit this process's own `ANTHROPIC_API_KEY` and send it to a
+  third-party endpoint. `providerEnv` returns `undefined` for the keys that must be cleared. The
+  whole key is omitted when no provider is active, to leave the default inheritance untouched.
 
 - **`settingSources: ['user', 'project', 'local']`** is set explicitly. The Agent SDK loads *no*
   config by default, which would mean no CLAUDE.md, no skills, no plugins and no MCP servers.

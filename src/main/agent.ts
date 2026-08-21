@@ -60,6 +60,25 @@ export function resolveClaudeExecutable(): string | undefined {
 }
 
 /**
+ * The child's full environment: everything this process has, with the provider's
+ * overrides on top. `process.env` is not a plain object and can hold undefined
+ * values, so it is copied key by key rather than spread.
+ *
+ * An override set to `undefined` *removes* the inherited variable. That is what
+ * keeps a token-less provider from being handed this process's own
+ * `ANTHROPIC_API_KEY` and sending it to a third-party endpoint.
+ */
+function mergedEnv(overrides: Record<string, string | undefined>): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v
+  for (const [k, v] of Object.entries(overrides)) {
+    if (v === undefined) delete env[k]
+    else env[k] = v
+  }
+  return env
+}
+
+/**
  * Async iterable the SDK pulls user messages from. Streaming-input mode is
  * required for `canUseTool` to work, so every session uses it even for the
  * first prompt.
@@ -130,6 +149,18 @@ export interface SessionOptions {
   profileId?: string | null
   /** Resolved profile text, appended to Claude Code's system prompt. */
   profilePrompt?: string
+  /**
+   * Environment overrides for the CLI child, from the active model provider.
+   * Merged over `process.env` at spawn - see `start()`. An `undefined` value
+   * unsets the inherited variable rather than leaving it in place.
+   */
+  env?: Record<string, string | undefined>
+  /**
+   * What the model picker should offer. A provider endpoint cannot be asked what
+   * it serves, so the list is configured rather than discovered, and `models()`
+   * returns it instead of querying the live session.
+   */
+  modelOptions?: ModelOption[]
 }
 
 interface PendingPermission {
@@ -209,6 +240,11 @@ export class AgentSession {
         resume: this.opts.resume,
         permissionMode: this.opts.permissionMode ?? 'default',
         pathToClaudeCodeExecutable: executable,
+        // Passing `env` at all makes the SDK *replace* the child's environment
+        // rather than extend it, so the merge has to happen here or the CLI
+        // spawns without PATH or HOME. Omit the key entirely when there is no
+        // provider, to keep the default inheritance path untouched.
+        ...(this.opts.env ? { env: mergedEnv(this.opts.env) } : {}),
         // Append rather than replace: substituting the preset would drop Claude
         // Code's own tool and skill guidance.
         ...(this.opts.profilePrompt
@@ -501,6 +537,10 @@ export class AgentSession {
   }
 
   async models(): Promise<ModelOption[]> {
+    // A provider's list is configured, not discovered, so it is authoritative:
+    // `supportedModels()` would answer with Anthropic's catalogue regardless of
+    // which endpoint the session is actually pointed at.
+    if (this.opts.modelOptions?.length) return this.opts.modelOptions
     if (!this.q) return []
     try {
       const list = await this.q.supportedModels()
@@ -521,7 +561,20 @@ export class AgentSession {
    */
   async setModel(model: string): Promise<SessionInfo> {
     this.opts = { ...this.opts, model }
-    if (this.q) await this.q.setModel(model)
+    // A provider model name is one the CLI has never heard of, and `setModel`
+    // can reject it. The choice is still recorded, so the next session starts on
+    // it; failing here would leave the picker showing a model that was not set.
+    if (this.q) {
+      try {
+        await this.q.setModel(model)
+      } catch (e) {
+        this.emit({
+          type: 'notice',
+          level: 'warn',
+          text: `Could not switch this session to ${model}: ${e instanceof Error ? e.message : String(e)}`,
+        })
+      }
+    }
     this.info = { ...this.info, model }
     this.emit({ type: 'session', info: this.info })
     return this.info

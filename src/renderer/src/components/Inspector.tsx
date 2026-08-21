@@ -12,8 +12,9 @@ import { desk } from '../lib/api.js'
 import { CopyButton } from './Copy.js'
 import { McpLogin } from './McpLogin.js'
 import { ProfilesPanel } from './Profiles.js'
+import { ProvidersPanel } from './Providers.js'
 
-export type Tab = 'mcp' | 'skills' | 'profiles' | 'usage'
+export type Tab = 'mcp' | 'skills' | 'profiles' | 'models' | 'usage'
 /** Agents and plugins are the same question as skills: what got loaded. */
 type LoadedView = 'skills' | 'agents' | 'plugins'
 
@@ -616,6 +617,9 @@ export function Inspector({
         <button className={tab === 'profiles' ? 'is-on' : ''} onClick={() => setTab('profiles')}>
           Profiles
         </button>
+        <button className={tab === 'models' ? 'is-on' : ''} onClick={() => setTab('models')}>
+          Models
+        </button>
         <button className={tab === 'usage' ? 'is-on' : ''} onClick={() => setTab('usage')}>
           Usage
         </button>
@@ -658,6 +662,7 @@ export function Inspector({
         {tab === 'skills' && loadedView === 'agents' && <AgentsPanel agents={agents} />}
         {tab === 'skills' && loadedView === 'plugins' && <PluginsPanel plugins={plugins} />}
         {tab === 'profiles' && <ProfilesPanel refreshKey={profilesKey} onChanged={onProfilesChanged} />}
+        {tab === 'models' && <ProvidersPanel />}
         {tab === 'usage' && <UsagePanel usage={usage} context={context} />}
       </div>
 

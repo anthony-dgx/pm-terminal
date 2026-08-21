@@ -10,11 +10,21 @@ import { readGroups, writeGroups } from './groups.js'
 import { defaultCwd, readPlayer, readPrefs, writePlayer, writePrefs } from './prefs.js'
 import { serveRenderer } from './server.js'
 import { profilePrompt, readProfiles, writeProfiles } from './profiles.js'
+import {
+  activeProvider,
+  listProviders,
+  providerEnv,
+  providerModel,
+  removeProvider,
+  saveProvider,
+  setActiveProvider,
+} from './providers.js'
 import type {
   AgentProfile,
   Attachment,
   MainEvent,
   PermissionAnswer,
+  ProviderInput,
   SessionGroup,
 } from '../shared/types.js'
 
@@ -183,9 +193,25 @@ function registerIpc(): void {
     if (!win) return null
     // Only this conversation is replaced; anything else stays running.
     sessions.get(clientId)?.session.dispose()
+    // The provider is resolved here rather than in the renderer, so the token
+    // never crosses the IPC boundary.
+    const provider = await activeProvider()
     const resolved: SessionOptions = {
       ...opts,
       profilePrompt: (await profilePrompt(opts.profileId)) ?? undefined,
+      ...(provider
+        ? {
+            env: providerEnv(provider),
+            modelOptions: provider.models,
+            // Any name the provider does not list is replaced by its first.
+            // Two ways a foreign one arrives: nothing was picked, so the CLI
+            // would fall back to its own Claude default; or the conversation is
+            // being resumed and carries the model its transcript was written
+            // with, which belongs to whichever endpoint was active back then.
+            // Either way the provider has never heard of it.
+            model: providerModel(provider, opts.model),
+          }
+        : {}),
     }
     const session = new AgentSession(resolved, emitterFor(clientId))
     sessions.set(clientId, { session, winId: win.id })
@@ -222,7 +248,9 @@ function registerIpc(): void {
   ipcMain.handle('session:models', async (_e, clientId: string) => (await sessionFor(clientId)?.models()) ?? [])
 
   ipcMain.handle('session:setModel', async (_e, clientId: string, model: string) => {
-    void writePrefs({ lastModel: model })
+    // Tagged with the provider it belongs to. `env:info` only offers it back as
+    // the default when that provider is still the active one.
+    void writePrefs({ lastModel: model, lastModelProviderId: (await readPrefs()).activeProviderId ?? null })
     const session = sessionFor(clientId)
     return session ? session.setModel(model) : null
   })
@@ -305,6 +333,15 @@ function registerIpc(): void {
   ipcMain.handle('groups:read', () => readGroups())
   ipcMain.handle('groups:write', (_e, groups: SessionGroup[]) => writeGroups(groups))
 
+  // ---- model providers ---------------------------------------------------
+  // Note that `providers:*` never returns a token. `listProviders` reports only
+  // whether one is stored.
+
+  ipcMain.handle('providers:list', () => listProviders())
+  ipcMain.handle('providers:save', (_e, input: ProviderInput) => saveProvider(input))
+  ipcMain.handle('providers:remove', (_e, id: string) => removeProvider(id))
+  ipcMain.handle('providers:setActive', (_e, id: string | null) => setActiveProvider(id))
+
   // ---- music player ------------------------------------------------------
 
   ipcMain.handle('ui:setInspectorOpen', (_e, open: boolean) => writePrefs({ inspectorOpen: open }))
@@ -333,16 +370,25 @@ function registerIpc(): void {
   ipcMain.handle('shell:openPath', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('shell:openExternal', (_e, url: string) => shell.openExternal(url))
 
-  ipcMain.handle('env:info', async () => ({
-    home: homedir(),
-    defaultCwd: await defaultCwd(),
-    defaultModel: (await readPrefs()).lastModel ?? null,
-    defaultProfileId: (await readPrefs()).lastProfileId ?? null,
-    inspectorOpen: (await readPrefs()).inspectorOpen ?? true,
-    sidebarOpen: (await readPrefs()).sidebarOpen ?? true,
-    theme: (await readPrefs()).theme ?? 'default',
-    claudePath: resolveClaudeExecutable() ?? null,
-  }))
+  ipcMain.handle('env:info', async () => {
+    const prefs = await readPrefs()
+    const activeProviderId = prefs.activeProviderId ?? null
+    return {
+      home: homedir(),
+      defaultCwd: await defaultCwd(),
+      // Only offered back when it belongs to the provider still in use. A GPT
+      // name remembered from a proxy session would fail against Anthropic, and
+      // the reverse fails too.
+      defaultModel:
+        (prefs.lastModelProviderId ?? null) === activeProviderId ? (prefs.lastModel ?? null) : null,
+      defaultProfileId: prefs.lastProfileId ?? null,
+      inspectorOpen: prefs.inspectorOpen ?? true,
+      sidebarOpen: prefs.sidebarOpen ?? true,
+      theme: prefs.theme ?? 'default',
+      claudePath: resolveClaudeExecutable() ?? null,
+      activeProviderId,
+    }
+  })
 }
 
 void app.whenReady().then(async () => {

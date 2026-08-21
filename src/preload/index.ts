@@ -11,6 +11,8 @@ import type {
   McpServerView,
   PermissionAnswer,
   PluginView,
+  ProviderInput,
+  ProviderView,
   SessionGroup,
   SessionInfo,
   SkillView,
@@ -62,6 +64,17 @@ export interface DeskApi {
   groupsRead(): Promise<SessionGroup[]>
   groupsWrite(groups: SessionGroup[]): Promise<void>
 
+  /** Model providers. No call here ever carries a token back to the renderer. */
+  providersList(): Promise<{
+    providers: ProviderView[]
+    activeId: string | null
+    /** Set when an admin policy pins the base URL, which overrides providers. */
+    managedBaseUrl: string | null
+  }>
+  providersSave(input: ProviderInput): Promise<ProviderView[]>
+  providersRemove(id: string): Promise<ProviderView[]>
+  providersSetActive(id: string | null): Promise<void>
+
   setInspectorOpen(open: boolean): Promise<void>
   setSidebarOpen(open: boolean): Promise<void>
   setTheme(theme: string): Promise<void>
@@ -81,6 +94,7 @@ export interface DeskApi {
     sidebarOpen: boolean
     theme: string
     claudePath: string | null
+    activeProviderId: string | null
   }>
 
   /** Open a document in its own window, tied to the calling conversation. */
@@ -128,6 +142,11 @@ const api: DeskApi = {
 
   groupsRead: () => ipcRenderer.invoke('groups:read'),
   groupsWrite: (groups) => ipcRenderer.invoke('groups:write', groups),
+
+  providersList: () => ipcRenderer.invoke('providers:list'),
+  providersSave: (input) => ipcRenderer.invoke('providers:save', input),
+  providersRemove: (id) => ipcRenderer.invoke('providers:remove', id),
+  providersSetActive: (id) => ipcRenderer.invoke('providers:setActive', id),
 
   setInspectorOpen: (open) => ipcRenderer.invoke('ui:setInspectorOpen', open),
   setSidebarOpen: (open) => ipcRenderer.invoke('ui:setSidebarOpen', open),

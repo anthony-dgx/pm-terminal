@@ -24,22 +24,36 @@ function short(model: string | null): string {
   if (!model) return 'model'
   // claude-sonnet-5 -> sonnet, claude-opus-5[1m] -> opus
   const m = model.match(/claude-([a-z]+)/)
-  return m ? m[1] : model
+  if (m) return m[1]
+  // Provider names are vendor-qualified and long: openai/gpt-5 -> gpt-5. The
+  // titlebar has room for a word, not a path.
+  const tail = model.split('/').pop() ?? model
+  return tail.length > 18 ? `${tail.slice(0, 17)}...` : tail
 }
 
 export function ModelPicker({ clientId, current, live, onChange }: Props): React.ReactElement {
   const [open, setOpen] = useState(false)
   const [models, setModels] = useState<ModelOption[]>([])
   const [loading, setLoading] = useState(false)
+  /** The active provider's list, used before a session exists to ask. */
+  const [fallback, setFallback] = useState<ModelOption[]>(FALLBACK)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     setLoading(true)
-    void desk.models(clientId).then((m) => {
-      setModels(m.length ? m : FALLBACK)
+    void (async () => {
+      // Claude's aliases are the wrong fallback when a provider is active: none
+      // of `opus`/`sonnet`/`haiku` mean anything to another endpoint.
+      const { providers, activeId } = await desk.providersList()
+      const provider = providers.find((p) => p.id === activeId)
+      const offered = provider?.models.length ? provider.models : FALLBACK
+      setFallback(offered)
+
+      const m = await desk.models(clientId)
+      setModels(m.length ? m : offered)
       setLoading(false)
-    })
+    })()
   }, [open, live, clientId])
 
   useEffect(() => {
@@ -58,7 +72,7 @@ export function ModelPicker({ clientId, current, live, onChange }: Props): React
     }
   }, [open])
 
-  const list = models.length ? models : FALLBACK
+  const list = models.length ? models : fallback
 
   return (
     <div className="model-picker" ref={ref}>

@@ -3,11 +3,20 @@ import { readFile, writeFile, rename, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+// Type-only, so the cycle with providers.ts is erased at build time.
+import type { StoredProvider } from './providers.js'
 
 interface Prefs {
   lastCwd?: string
   lastModel?: string
+  /**
+   * Which provider `lastModel` belongs to. Model names are provider-specific, so
+   * remembering one without this would offer a GPT name to an Anthropic session.
+   */
+  lastModelProviderId?: string | null
   lastProfileId?: string | null
+  providers?: StoredProvider[]
+  activeProviderId?: string | null
   inspectorOpen?: boolean
   sidebarOpen?: boolean
   theme?: string

@@ -64,6 +64,36 @@ export interface ModelOption {
   supportsEffort?: boolean
 }
 
+/**
+ * A model provider as the renderer sees it: an Anthropic-compatible endpoint the
+ * `claude` binary talks to instead of api.anthropic.com. The token is never part
+ * of this shape - it stays in the main process.
+ */
+export interface ProviderView {
+  id: string
+  name: string
+  baseUrl: string
+  models: ModelOption[]
+  smallFastModel?: string
+  /** Whether a token is stored, so the form can say so without reading it. */
+  hasToken: boolean
+}
+
+/** What the provider form sends back. */
+export interface ProviderInput {
+  /** Absent when creating. */
+  id?: string
+  name: string
+  baseUrl: string
+  models: ModelOption[]
+  smallFastModel?: string
+  /**
+   * Three-valued: absent leaves the stored token alone, so editing a name does
+   * not force retyping a secret that cannot be read back. Empty clears it.
+   */
+  token?: string
+}
+
 export interface AgentView {
   name: string
   description: string
