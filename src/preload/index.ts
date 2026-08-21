@@ -7,6 +7,7 @@ import type {
   HistoryEntry,
   MainEvent,
   ModelOption,
+  McpLoginEvent,
   McpServerView,
   PermissionAnswer,
   PluginView,
@@ -36,6 +37,14 @@ export interface DeskApi {
 
   mcp(clientId: string): Promise<McpServerView[]>
   reconnectMcp(clientId: string, name: string): Promise<McpServerView[]>
+  /** Start `claude mcp login <name>`. Progress arrives through `onMcpLogin`. */
+  mcpLogin(clientId: string, name: string): Promise<void>
+  /** Answer the CLI's "paste the redirect URL" prompt. */
+  mcpLoginInput(name: string, text: string): Promise<void>
+  mcpLoginCancel(name: string): Promise<void>
+  /** Name of the server currently signing in, or null. */
+  mcpLoginActive(): Promise<string | null>
+  onMcpLogin(cb: (e: McpLoginEvent) => void): () => void
   skills(clientId: string): Promise<SkillView[]>
   agents(clientId: string): Promise<AgentView[]>
   plugins(): Promise<PluginView[]>
@@ -94,6 +103,15 @@ const api: DeskApi = {
 
   mcp: (clientId) => ipcRenderer.invoke('inspect:mcp', clientId),
   reconnectMcp: (clientId, name) => ipcRenderer.invoke('mcp:reconnect', clientId, name),
+  mcpLogin: (clientId, name) => ipcRenderer.invoke('mcp:login', clientId, name),
+  mcpLoginInput: (name, text) => ipcRenderer.invoke('mcp:loginInput', name, text),
+  mcpLoginCancel: (name) => ipcRenderer.invoke('mcp:loginCancel', name),
+  mcpLoginActive: () => ipcRenderer.invoke('mcp:loginActive'),
+  onMcpLogin: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, event: McpLoginEvent): void => cb(event)
+    ipcRenderer.on('mcp-login', listener)
+    return () => ipcRenderer.off('mcp-login', listener)
+  },
   skills: (clientId) => ipcRenderer.invoke('inspect:skills', clientId),
   agents: (clientId) => ipcRenderer.invoke('inspect:agents', clientId),
   plugins: () => ipcRenderer.invoke('inspect:plugins'),

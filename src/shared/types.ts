@@ -32,6 +32,21 @@ export interface McpServerView {
   needsAuthSince?: number
 }
 
+/**
+ * Progress from `claude mcp login <name>`, which the main process drives through
+ * a pty. One flow at a time, so these carry the server name only to let a stale
+ * window ignore events for a login it did not start.
+ */
+export type McpLoginEvent =
+  | { name: string; kind: 'output'; text: string }
+  /** The authorization URL, pulled out of the output so it can be clicked. */
+  | { name: string; kind: 'url'; url: string }
+  /** The CLI is listening on its loopback callback, so the browser can finish. */
+  | { name: string; kind: 'waiting' }
+  /** The CLI is also accepting a pasted redirect URL, as a fallback. */
+  | { name: string; kind: 'paste-ready' }
+  | { name: string; kind: 'done'; ok: boolean; message: string }
+
 export interface SkillView {
   name: string
   description: string

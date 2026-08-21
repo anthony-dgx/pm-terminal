@@ -9,7 +9,7 @@ import type {
   Turn,
 } from '../../shared/types.js'
 import { desk } from './lib/api.js'
-import { Inspector } from './components/Inspector.js'
+import { Inspector, type Tab as InspectorTab } from './components/Inspector.js'
 import { PermissionPrompt } from './components/PermissionPrompt.js'
 import { Sidebar } from './components/Sidebar.js'
 import { TurnView } from './components/TurnView.js'
@@ -99,6 +99,10 @@ export function App(): React.ReactElement {
   const [winWidth, setWinWidth] = useState(() => window.innerWidth)
   const [notices, setNotices] = useState<{ level: string; text: string }[]>([])
   const [inspectorKey, setInspectorKey] = useState(0)
+  const [inspectorFocus, setInspectorFocus] = useState<{ tab: InspectorTab; nonce: number } | null>(
+    null,
+  )
+  const focusNonce = useRef(1)
   // Bumped to ask the sidebar to create a group; it owns the group state.
   const [newGroupSignal, setNewGroupSignal] = useState(0)
   const [kroks, setKroks] = useState<KroksReaction>(null)
@@ -255,6 +259,17 @@ export function App(): React.ReactElement {
     })
   }, [])
 
+  /**
+   * Show the panel on a given tab, from somewhere that is not the tab bar. The
+   * nonce is what lets the same request work twice in a row.
+   */
+  const focusInspector = useCallback((tab: InspectorTab) => {
+    setInspectorOpen(true)
+    inspectorPrefRef.current = true
+    void desk.setInspectorOpen(true)
+    setInspectorFocus({ tab, nonce: focusNonce.current++ })
+  }, [])
+
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((open) => {
       const next = !open
@@ -323,6 +338,16 @@ export function App(): React.ReactElement {
       const text = (override ?? c.input).trim()
       if ((!text && !images.length) || c.info?.status === 'starting') return
 
+      // `/mcp` is an interactive screen in the terminal. Through the SDK it only
+      // prints a one-line summary and cannot sign in to anything, so intercept it
+      // and open the panel, where the live status and the sign-in button live.
+      // Anything with arguments (`/mcp reconnect all`) still goes to the agent.
+      if (text === '/mcp' && !images.length) {
+        if (fromComposer) patch(c.id, (x) => ({ ...x, input: '' }))
+        focusInspector('mcp')
+        return
+      }
+
       patch(c.id, (x) => ({
         ...x,
         // Only clear the composer if that is where this came from. A review
@@ -348,7 +373,7 @@ export function App(): React.ReactElement {
       poke('perk')
       await desk.send(c.id, text, images)
     },
-    [conversations, activeId, patch, poke],
+    [conversations, activeId, patch, poke, focusInspector],
   )
 
   // ---- review ------------------------------------------------------------
@@ -656,6 +681,7 @@ export function App(): React.ReactElement {
           <Inspector
             clientId={activeId}
             refreshKey={inspectorKey}
+            focus={inspectorFocus ?? undefined}
             profilesKey={profilesKey}
             onProfilesChanged={() => setProfilesKey((k) => k + 1)}
             onClose={toggleInspector}

@@ -10,9 +10,10 @@ import type {
 } from '../../../shared/types.js'
 import { desk } from '../lib/api.js'
 import { CopyButton } from './Copy.js'
+import { McpLogin } from './McpLogin.js'
 import { ProfilesPanel } from './Profiles.js'
 
-type Tab = 'mcp' | 'skills' | 'profiles' | 'usage'
+export type Tab = 'mcp' | 'skills' | 'profiles' | 'usage'
 /** Agents and plugins are the same question as skills: what got loaded. */
 type LoadedView = 'skills' | 'agents' | 'plugins'
 
@@ -25,14 +26,46 @@ const STATUS_SECTIONS: { key: McpStatus; label: string }[] = [
   { key: 'disabled', label: 'Disabled' },
 ]
 
+/**
+ * Whether a server can be signed in to at all.
+ *
+ * Sign-in is offered whatever the status, including `connected` and `pending`.
+ * An expired token can present as any of them, and a server you have never
+ * authorized sits at `pending` until a session tries it - gating on needs-auth
+ * alone made the button disappear exactly when it was wanted.
+ *
+ * The one real exclusion is a stdio server: it is a local command with no OAuth
+ * config, so there is no flow to run. That button renders disabled rather than
+ * missing, so the reason is visible instead of mysterious.
+ */
+function canSignIn(s: McpServerView): boolean {
+  return s.appliesToCwd !== false
+}
+
+/**
+ * Whether signing in could destroy something, and so needs a confirmation step.
+ * `claude mcp login` revokes the existing tokens before it starts the new flow,
+ * so abandoning it half way leaves the server signed out.
+ *
+ * Only `needs-auth` and `failed` provably have nothing to lose. Everything else
+ * is gated, `pending` included: before a session has tried a server it sits at
+ * `pending` whether or not it already holds a working token, and on a fresh
+ * launch that is every server.
+ */
+function signInIsDestructive(s: McpServerView): boolean {
+  return s.status !== 'needs-auth' && s.status !== 'failed'
+}
+
 function McpPanel({
   servers,
   onServers,
   clientId,
+  onSignIn,
 }: {
   servers: McpServerView[]
   onServers: (next: McpServerView[]) => void
   clientId: string
+  onSignIn: (name: string) => void
 }): React.ReactElement {
   const [busy, setBusy] = useState<string | null>(null)
   const [failed, setFailed] = useState<Record<string, string>>({})
@@ -205,15 +238,29 @@ function McpPanel({
                   >
                     {busy === s.name ? 'Reconnecting...' : 'Reconnect'}
                   </button>
-                  {s.status === 'needs-auth' && (
-                    <span className="row-meta">OAuth still needs /mcp in a session</span>
+                  {canSignIn(s) && (
+                    <button
+                      className="btn btn-sm btn-primary"
+                      disabled={s.transport === 'stdio'}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onSignIn(s.name)
+                      }}
+                      title={
+                        s.transport === 'stdio'
+                          ? 'A local command server has no OAuth sign-in'
+                          : `Run the OAuth sign-in for ${s.name}`
+                      }
+                    >
+                      Sign in
+                    </button>
                   )}
                 </div>
 
-                {s.status === 'needs-auth' && (
+                {canSignIn(s) && s.transport !== 'stdio' && (
                   <p className="panel-hint">
-                    Reconnect retries the connection, but it cannot complete an OAuth sign-in. If it comes back
-                    as needs-auth, run <code>/mcp</code> in a session to authorise, then reconnect here.
+                    Sign in runs the OAuth flow in your browser. It clears this server's old tokens
+                    first, so finish it once you start.
                   </p>
                 )}
                 {s.tools.length > 0 && (
@@ -482,14 +529,22 @@ export function Inspector({
   profilesKey,
   onProfilesChanged,
   onClose,
+  focus,
 }: {
   clientId: string
   refreshKey: number
   profilesKey: number
   onProfilesChanged: () => void
   onClose: () => void
+  /**
+   * Ask for a tab from outside. The nonce is what makes it work twice: typing
+   * `/mcp` again after clicking away to Skills has to bring MCP back, and a bare
+   * tab value would already be equal to itself.
+   */
+  focus?: { tab: Tab; nonce: number }
 }): React.ReactElement {
   const [tab, setTab] = useState<Tab>('mcp')
+  const [signingIn, setSigningIn] = useState<string | null>(null)
   const [loadedView, setLoadedView] = useState<LoadedView>('skills')
   const [mcp, setMcp] = useState<McpServerView[]>([])
   const [skills, setSkills] = useState<SkillView[]>([])
@@ -518,6 +573,30 @@ export function Inspector({
   useEffect(() => {
     void refresh()
   }, [refresh, refreshKey])
+
+  useEffect(() => {
+    if (focus) setTab(focus.tab)
+  }, [focus?.nonce, focus?.tab])
+
+  /**
+   * The CLI holds the new credentials, but a session that is already running is
+   * still sitting on the failed connection, so its tools stay missing until it
+   * reconnects. Do that here rather than making the user press the other button.
+   */
+  const onAuthenticated = useCallback(() => {
+    const name = signingIn
+    void (async () => {
+      if (name) {
+        try {
+          await desk.reconnectMcp(clientId, name)
+        } catch {
+          // No session running, or it is still settling. The refresh below still
+          // picks up the status change.
+        }
+      }
+      await refresh()
+    })()
+  }, [signingIn, clientId, refresh])
 
   const connected = mcp.filter((s) => s.status === 'connected').length
   const problems = mcp.filter((s) => s.status === 'failed' || s.status === 'needs-auth').length
@@ -572,13 +651,28 @@ export function Inspector({
       )}
 
       <div className="inspector-body">
-        {tab === 'mcp' && <McpPanel servers={mcp} onServers={setMcp} clientId={clientId} />}
+        {tab === 'mcp' && (
+          <McpPanel servers={mcp} onServers={setMcp} clientId={clientId} onSignIn={setSigningIn} />
+        )}
         {tab === 'skills' && loadedView === 'skills' && <SkillsPanel skills={skills} />}
         {tab === 'skills' && loadedView === 'agents' && <AgentsPanel agents={agents} />}
         {tab === 'skills' && loadedView === 'plugins' && <PluginsPanel plugins={plugins} />}
         {tab === 'profiles' && <ProfilesPanel refreshKey={profilesKey} onChanged={onProfilesChanged} />}
         {tab === 'usage' && <UsagePanel usage={usage} context={context} />}
       </div>
+
+      {signingIn && (
+        <McpLogin
+          name={signingIn}
+          clientId={clientId}
+          // A server that works today must not be revoked by a stray click.
+          confirmFirst={signInIsDestructive(
+            mcp.find((s) => s.name === signingIn) ?? ({ status: 'pending' } as McpServerView),
+          )}
+          onClose={() => setSigningIn(null)}
+          onAuthenticated={onAuthenticated}
+        />
+      )}
     </aside>
   )
 }

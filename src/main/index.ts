@@ -4,6 +4,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { AgentSession, resolveClaudeExecutable, type SessionOptions } from './agent.js'
 import { configSummary, readMcpFromDisk, readPlugins, readSkillsFromDisk } from './inspect.js'
+import { cancelMcpLogin, mcpLoginInProgress, sendMcpLoginInput, startMcpLogin } from './mcpAuth.js'
 import { listHistory, readTranscript, renameSession } from './sessions.js'
 import { readGroups, writeGroups } from './groups.js'
 import { defaultCwd, readPlayer, readPrefs, writePlayer, writePrefs } from './prefs.js'
@@ -255,6 +256,23 @@ function registerIpc(): void {
     if (!session) throw new Error('Start a session before reconnecting an MCP server.')
     return session.reconnectMcp(name)
   })
+
+  // ---- mcp sign-in -------------------------------------------------------
+  // Driven by the CLI under a pty, not the SDK. See src/main/mcpAuth.ts for why.
+  // Progress goes back on its own channel to the window that asked, so it does
+  // not have to be threaded through the per-conversation event union.
+
+  ipcMain.handle('mcp:login', (e, clientId: string, name: string) => {
+    const cwd = sessionFor(clientId)?.getInfo().cwd
+    const web = e.sender
+    startMcpLogin(name, cwd, (event) => {
+      if (!web.isDestroyed()) web.send('mcp-login', event)
+    })
+  })
+
+  ipcMain.handle('mcp:loginInput', (_e, name: string, text: string) => sendMcpLoginInput(name, text))
+  ipcMain.handle('mcp:loginCancel', (_e, name: string) => cancelMcpLogin(name))
+  ipcMain.handle('mcp:loginActive', () => mcpLoginInProgress())
 
   ipcMain.handle('inspect:skills', async (_e, clientId: string) => {
     const live = await sessionFor(clientId)?.skills()

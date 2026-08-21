@@ -55,9 +55,19 @@ document in **its own window**, formatted, with a comment rail down the side.
 Comments go into the conversation the document came from, so the transcript keeps the whole history.
 They live in memory for the session and are not saved to disk.
 
+**Sign in to an MCP server.** Type `/mcp` and the panel opens on your servers, worst first. Every
+server in the current directory gets a **Sign in** button, whatever its status, disabled only on the
+local `stdio` ones that have no sign-in to do: click it, authorize in the browser tab that opens,
+and it finishes on its own. If the browser does not come back, paste the URL it ended on into
+the box in the dialog. On success the app reconnects the server so its tools load in the session you
+are already in, without a restart.
+
+Unless a server is visibly signed out, the button asks first, because Claude Code clears a server's
+old tokens before it starts a new flow. Nothing runs until you confirm, so backing out is safe.
+
 **Check your setup.** A side panel shows:
 
-- **MCP** servers with live connection status, worst first, each with a **Reconnect** button
+- **MCP** servers with live connection status, worst first, each with **Reconnect** and **Sign in**
 - **Skills** available to the session, searchable, plus subagents and plugins
 - **Profiles** (below)
 - **Usage** for the session: cost, tokens, and how full the context window is
@@ -116,8 +126,9 @@ matters because some MCP servers are configured per directory.
 - **No YouTube account.** Music plays through a public embed, so no Premium, no private playlists,
   and ads can still play. Google blocks sign-in inside apps like this one. "Open in browser" hands
   the link to your real browser.
-- **Signing in to an MCP server** still needs `/mcp` in a session. Reconnect retries a connection
-  but cannot complete an OAuth login.
+- **Signing in again on a working server signs it out first.** The CLI clears the existing tokens
+  before it starts the new flow, so if you abandon the browser step the server is left signed out.
+  The app warns you and waits for a confirmation before it starts.
 - **Sessions running in a terminal** show up here, but only as of their last save, not live.
 - **Deleting a built-in profile does not stick.** It returns next launch. Edit it instead.
 
@@ -136,6 +147,7 @@ src/main/       Node side. Owns the SDK sessions and all filesystem reads.
   agent.ts      One AgentSession: streaming-input queue, message-to-turn mapping,
                 permission prompts bridged to the renderer over IPC.
   inspect.ts    MCP, plugins and skills read from disk before a session exists.
+  mcpAuth.ts    `claude mcp login` under a pty, for MCP OAuth sign-in.
   sessions.ts   ~/.claude/projects transcript listing, parsing and renaming.
   groups.ts     Session groups.       prefs.ts      Window, theme, last-used state.
   profiles.ts   Agent profiles, including the built-ins.
@@ -146,7 +158,7 @@ src/renderer/   React 19 UI. Themes are CSS variable swaps on a data-theme attri
 src/shared/     Types shared across the boundary.
 ```
 
-Four decisions are load-bearing. Each one broke something real when it was missing:
+Five decisions are load-bearing. Each one broke something real when it was missing:
 
 - **`settingSources: ['user', 'project', 'local']`** is set explicitly. The Agent SDK loads *no*
   config by default, which would mean no CLAUDE.md, no skills, no plugins and no MCP servers.
@@ -156,6 +168,14 @@ Four decisions are load-bearing. Each one broke something real when it was missi
   origin and the YouTube player refuses to start, with error 153.
 - **Profile prompts are appended** to Claude Code's own system prompt rather than replacing it, so
   its tool and skill guidance survives.
+- **MCP sign-in runs `claude mcp login` through a pty**, not through the Agent SDK. The SDK cannot
+  start an OAuth flow at all: `reconnectMcpServer` throws on a needs-auth server, `/mcp` only prints
+  a summary, and such a server's tools never reach the model, so nothing elicits. The CLI can do it,
+  but it aborts unless stdin is a terminal - the check is unconditional, so a piped child process
+  never finishes even though the loopback callback is already listening. `node-pty` satisfies it.
+  Its prebuild is N-API, so it loads in Electron without a rebuild, but `spawn-helper` ships without
+  its executable bit (`scripts/fix-node-pty.mjs` restores it on install) and node-pty has to be in
+  `asarUnpack`, because that helper is a real executable and cannot be run from inside an asar.
 
 Two environment variables: `CLAUDE_DESK_CLI_PATH` to point at a specific `claude` binary, and
 `CLAUDE_DESK_DEFAULT_CWD` to force a starting directory.
