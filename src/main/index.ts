@@ -422,6 +422,26 @@ void app.whenReady().then(async () => {
 
   createWindow()
 
+  // Drive the daily check from here, not from the panel. The row only mounts
+  // when the side panel is open, and then only once, so on its own it would
+  // mean "checked when you first opened the panel" rather than "once a day" -
+  // and never at all for someone who keeps the panel closed. The hourly tick
+  // is cheap: `checkForUpdate(false)` returns the cached answer without
+  // touching the network until the day is up.
+  const tick = (): void => {
+    void checkForUpdate(false)
+      .then((status) => {
+        // Push it, because the row reads its status once at mount. A window
+        // left open past the throttle would otherwise keep showing yesterday.
+        for (const win of BrowserWindow.getAllWindows()) {
+          if (!win.isDestroyed()) win.webContents.send('update-status', status)
+        }
+      })
+      .catch(() => {})
+  }
+  tick()
+  setInterval(tick, 60 * 60 * 1000)
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

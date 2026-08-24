@@ -103,8 +103,10 @@ reinstalls dependencies, rebuilds, swaps the installed app and relaunches it - t
 
 The app has to quit to be replaced, since it is running from the bundle being swapped. It says so
 first, and counts any sessions still working that would be stopped. It refuses if the clone has
-uncommitted changes or if its `main` has diverged from `origin/main`, because neither is something a
-button should decide for you. The swap builds a copy alongside the old app and only removes the old
+uncommitted changes, if it is not on `main`, or if its `main` has diverged from `origin/main`,
+because none of those is something a button should decide for you. It only ever fast-forwards, so
+it cannot move work you had in progress. The swap builds a copy alongside the old app and only
+removes the old
 one once the new one is in place, so a failure leaves the version you had rather than nothing.
 
 **Paste screenshots.** Paste or drop an image straight into the message box.

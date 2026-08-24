@@ -253,6 +253,20 @@ export async function applyUpdate(onProgress: (p: UpdateProgress) => void): Prom
     )
   }
 
+  // A clean tree says nothing about which ref is checked out. On a detached
+  // HEAD, or on a feature branch that happens to be behind, `--ff-only` below
+  // succeeds and quietly drags that ref onto main - destroying the branch
+  // point in the second case. Only main gets updated by a button.
+  let branch = ''
+  try {
+    branch = await git(['symbolic-ref', '--short', 'HEAD'])
+  } catch {
+    throw new Error(`The clone at ${__BUILD_REPO__} is on a detached HEAD. Check out main, then update.`)
+  }
+  if (branch !== 'main') {
+    throw new Error(`The clone at ${__BUILD_REPO__} is on \`${branch}\`. Check out main, then update.`)
+  }
+
   const npm = resolveNpm()
   if (!npm) throw new Error('Could not find npm. Install Node.js, or update by hand from the clone.')
 

@@ -101,6 +101,8 @@ export interface DeskApi {
   /** Pull, rebuild, swap the bundle and relaunch. Quits the app on success. */
   updateApply(): Promise<void>
   onUpdateProgress(cb: (p: UpdateProgress) => void): () => void
+  /** The daily check runs in main, so its answer arrives rather than being asked for. */
+  onUpdateStatus(cb: (s: UpdateStatus) => void): () => void
 
   onEvent(cb: (clientId: string, e: MainEvent) => void): () => void
 }
@@ -167,6 +169,11 @@ const api: DeskApi = {
     const listener = (_e: Electron.IpcRendererEvent, p: UpdateProgress): void => cb(p)
     ipcRenderer.on('update-progress', listener)
     return () => ipcRenderer.off('update-progress', listener)
+  },
+  onUpdateStatus: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, s: UpdateStatus): void => cb(s)
+    ipcRenderer.on('update-status', listener)
+    return () => ipcRenderer.off('update-status', listener)
   },
 
   onEvent: (cb) => {
