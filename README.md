@@ -124,6 +124,15 @@ npm start
 
 `npm run dev` also works and reloads as you edit.
 
+If `npm start` fails with **`Error: Electron uninstall`**, the Electron binary was never downloaded.
+Recent npm blocks dependency install scripts until they are approved, and Electron's is the one that
+fetches its binary - so everything installs, everything builds, and only the launch fails. `npm
+install` now repairs this itself. To fix it by hand:
+
+```bash
+node node_modules/electron/install.js
+```
+
 The app opens in the last directory you used. Click the path in the title bar to change it, which
 matters because some MCP servers are configured per directory.
 
