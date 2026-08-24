@@ -93,6 +93,20 @@ old tokens before it starts a new flow. Nothing runs until you confirm, so backi
 - **Profiles** (below)
 - **Usage** for the session: cost, tokens, and how full the context window is
 
+**Know when the app is stale.** The foot of the side panel says whether you are running the latest
+code, with the commit you built from. It checks once a day on its own, and `↻` checks on demand.
+
+There is no download behind this. The app is installed by building it from a clone, so "behind"
+means that clone's `origin/main` has moved on. When it has, an **Update** button appears: it pulls,
+reinstalls dependencies, rebuilds, swaps the installed app and relaunches it - the whole
+`npm run install:app` sequence, without the typing.
+
+The app has to quit to be replaced, since it is running from the bundle being swapped. It says so
+first, and counts any sessions still working that would be stopped. It refuses if the clone has
+uncommitted changes or if its `main` has diverged from `origin/main`, because neither is something a
+button should decide for you. The swap builds a copy alongside the old app and only removes the old
+one once the new one is in place, so a failure leaves the version you had rather than nothing.
+
 **Paste screenshots.** Paste or drop an image straight into the message box.
 
 **Agent profiles.** A reusable set of instructions applied when a session starts, so you stop

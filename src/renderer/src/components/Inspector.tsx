@@ -12,6 +12,7 @@ import { desk } from '../lib/api.js'
 import { CopyButton } from './Copy.js'
 import { McpLogin } from './McpLogin.js'
 import { ProfilesPanel } from './Profiles.js'
+import { UpdateRow } from './UpdateRow.js'
 
 export type Tab = 'mcp' | 'skills' | 'profiles' | 'usage'
 /** Agents and plugins are the same question as skills: what got loaded. */
@@ -530,6 +531,7 @@ export function Inspector({
   onProfilesChanged,
   onClose,
   focus,
+  busy = 0,
 }: {
   clientId: string
   refreshKey: number
@@ -542,6 +544,8 @@ export function Inspector({
    * tab value would already be equal to itself.
    */
   focus?: { tab: Tab; nonce: number }
+  /** Conversations with work in flight, so the update button can warn first. */
+  busy?: number
 }): React.ReactElement {
   const [tab, setTab] = useState<Tab>('mcp')
   const [signingIn, setSigningIn] = useState<string | null>(null)
@@ -660,6 +664,8 @@ export function Inspector({
         {tab === 'profiles' && <ProfilesPanel refreshKey={profilesKey} onChanged={onProfilesChanged} />}
         {tab === 'usage' && <UsagePanel usage={usage} context={context} />}
       </div>
+
+      <UpdateRow busy={busy} />
 
       {signingIn && (
         <McpLogin

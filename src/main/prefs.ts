@@ -12,6 +12,18 @@ interface Prefs {
   sidebarOpen?: boolean
   theme?: string
   player?: { url?: string; volume?: number }
+  /**
+   * The last update check, so the automatic one can run at most once a day.
+   * Keyed by the commit it describes: a result saved by a previous build says
+   * nothing about the one running now.
+   */
+  lastUpdate?: {
+    commit: string
+    state: 'current' | 'behind' | 'dirty-build' | 'unknown'
+    behind: number
+    detail?: string
+    checkedAt?: number
+  }
 }
 
 function prefsPath(): string {

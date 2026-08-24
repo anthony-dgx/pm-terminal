@@ -212,3 +212,37 @@ export type MainEvent =
   | { type: 'permission-resolved'; id: string }
   | { type: 'inspector-dirty' }
   | { type: 'notice'; level: 'info' | 'warn' | 'error'; text: string }
+
+/**
+ * Whether the installed app matches `origin/main` in the clone it was built
+ * from. There is no release feed to check, so this is the only question that
+ * can be answered: not "is there a newer version" but "is the clone's main
+ * ahead of what I am running".
+ */
+export interface UpdateStatus {
+  /** Short commit the running app was built from. Empty if it was not baked. */
+  commit: string
+  builtAt: string
+  /** The clone the app was built from, and the one an update would build in. */
+  repo: string
+  state:
+    | 'current'
+    | 'behind'
+    /** Built off uncommitted changes, so no commit count means anything. */
+    | 'dirty-build'
+    /** Not a packaged app, or the check could not run. `detail` says why. */
+    | 'unknown'
+  /** Commits on `origin/main` that the running build does not have. */
+  behind: number
+  detail?: string
+  /** When the last successful check ran, epoch ms. */
+  checkedAt?: number
+  /** False in a dev run, or when the built bundle cannot be located. */
+  canUpdate: boolean
+}
+
+/** Progress from a running update. `done` is terminal, and `ok` says which way. */
+export type UpdateProgress =
+  | { type: 'step'; text: string }
+  | { type: 'output'; text: string }
+  | { type: 'done'; ok: boolean; text: string }

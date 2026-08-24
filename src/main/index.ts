@@ -11,12 +11,14 @@ import { readGroups, writeGroups } from './groups.js'
 import { defaultCwd, readPlayer, readPrefs, writePlayer, writePrefs } from './prefs.js'
 import { serveRenderer } from './server.js'
 import { profilePrompt, readProfiles, writeProfiles } from './profiles.js'
+import { applyUpdate, cachedStatus, checkForUpdate } from './update.js'
 import type {
   AgentProfile,
   Attachment,
   MainEvent,
   PermissionAnswer,
   SessionGroup,
+  UpdateProgress,
 } from '../shared/types.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -370,6 +372,29 @@ function registerIpc(): void {
 
   ipcMain.handle('shell:openPath', (_e, path: string) => shell.openPath(path))
   ipcMain.handle('shell:openExternal', (_e, url: string) => shell.openExternal(url))
+
+  // Cheap: reads the baked commit and whatever the last check found. The
+  // renderer calls this on boot, then asks for a real check separately.
+  ipcMain.handle('update:status', () => cachedStatus())
+
+  ipcMain.handle('update:check', (_e, force: boolean) => checkForUpdate(force))
+
+  ipcMain.handle('update:apply', async (event) => {
+    const win = windowOf(event)
+    const send = (p: UpdateProgress): void => {
+      if (win && !win.isDestroyed()) win.webContents.send('update-progress', p)
+    }
+    try {
+      await applyUpdate(send)
+    } catch (err) {
+      send({ type: 'done', ok: false, text: (err as Error).message })
+      throw err
+    }
+    // The swap script is waiting on this process to exit before it can replace
+    // the bundle we are running from. Give the renderer a moment to paint the
+    // last line first.
+    setTimeout(() => app.quit(), 800)
+  })
 
   ipcMain.handle('env:info', async () => ({
     home: homedir(),

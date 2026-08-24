@@ -15,6 +15,8 @@ import type {
   SessionInfo,
   SkillView,
   Turn,
+  UpdateProgress,
+  UpdateStatus,
   UsageView,
 } from '../shared/types.js'
 
@@ -92,6 +94,14 @@ export interface DeskApi {
   /** Save an edited document. Only to the file this window was opened on. */
   writeMarkdown(path: string, text: string): Promise<void>
 
+  /** The last known answer, without touching the network. */
+  updateStatus(): Promise<UpdateStatus>
+  /** Ask the clone about `origin/main`. Unforced calls skip if one ran today. */
+  updateCheck(force: boolean): Promise<UpdateStatus>
+  /** Pull, rebuild, swap the bundle and relaunch. Quits the app on success. */
+  updateApply(): Promise<void>
+  onUpdateProgress(cb: (p: UpdateProgress) => void): () => void
+
   onEvent(cb: (clientId: string, e: MainEvent) => void): () => void
 }
 
@@ -149,6 +159,15 @@ const api: DeskApi = {
   readerDoc: () => ipcRenderer.invoke('reader:doc'),
   readMarkdown: (path) => ipcRenderer.invoke('file:readMarkdown', path),
   writeMarkdown: (path, text) => ipcRenderer.invoke('file:writeMarkdown', path, text),
+
+  updateStatus: () => ipcRenderer.invoke('update:status'),
+  updateCheck: (force) => ipcRenderer.invoke('update:check', force),
+  updateApply: () => ipcRenderer.invoke('update:apply'),
+  onUpdateProgress: (cb) => {
+    const listener = (_e: Electron.IpcRendererEvent, p: UpdateProgress): void => cb(p)
+    ipcRenderer.on('update-progress', listener)
+    return () => ipcRenderer.off('update-progress', listener)
+  },
 
   onEvent: (cb) => {
     const listener = (

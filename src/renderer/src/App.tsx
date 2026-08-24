@@ -682,6 +682,7 @@ export function App(): React.ReactElement {
             clientId={activeId}
             refreshKey={inspectorKey}
             focus={inspectorFocus ?? undefined}
+            busy={Object.values(conversations).filter((c) => c.awaiting).length}
             profilesKey={profilesKey}
             onProfilesChanged={() => setProfilesKey((k) => k + 1)}
             onClose={toggleInspector}
