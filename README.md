@@ -147,6 +147,10 @@ install` now repairs this itself. To fix it by hand:
 node node_modules/electron/install.js
 ```
 
+Keep the clone after installing. The installed app has no updater of its own: it remembers where it
+was built and rebuilds itself there. Delete the clone and the version line in the side panel goes
+quiet, and you are back to reinstalling by hand.
+
 The app opens in the last directory you used. Click the path in the title bar to change it, which
 matters because some MCP servers are configured per directory.
 
