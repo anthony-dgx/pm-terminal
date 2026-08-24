@@ -83,8 +83,14 @@ export function Reader({
   // Selection becomes a draft card in the rail, the way Docs puts the box in
   // the margin. No floating bubble to position, and nothing to mis-place when
   // the document scrolls.
+  //
+  // Read on mouseup and keyup, not on `selectionchange`. `selectionchange` fires
+  // on the first character of a drag, which opened the draft card immediately;
+  // its autoFocus textarea then took focus and the browser dropped the drag
+  // half-done, so a comment could only ever quote one letter. mouseup is the
+  // point where a selection is actually finished.
   useEffect(() => {
-    const onSelect = (): void => {
+    const onDone = (): void => {
       const root = docRef.current
       if (!root) return
       const sel = document.getSelection()
@@ -99,8 +105,25 @@ export function Reader({
       if (!Number.isInteger(index)) return
       setDraft({ blockIndex: index, quote: quote.slice(0, MAX_QUOTE) })
     }
-    document.addEventListener('selectionchange', onSelect)
-    return () => document.removeEventListener('selectionchange', onSelect)
+    // Releasing the mouse over the rail leaves the old document range live,
+    // which would otherwise reopen a draft on top of the one being typed. Not
+    // needed for keyup: with no focusable document, its target is the body.
+    const onMouseUp = (e: MouseEvent): void => {
+      const root = docRef.current
+      if (root && e.target instanceof Node && !root.contains(e.target)) return
+      onDone()
+    }
+    // Keyboard selection ends on the keyup of the arrow, so it needs its own
+    // hook. Gated on Shift to keep plain cursor movement out of it.
+    const onKeyUp = (e: KeyboardEvent): void => {
+      if (e.shiftKey || e.key === 'Shift' || (e.key === 'a' && (e.metaKey || e.ctrlKey))) onDone()
+    }
+    document.addEventListener('mouseup', onMouseUp)
+    document.addEventListener('keyup', onKeyUp)
+    return () => {
+      document.removeEventListener('mouseup', onMouseUp)
+      document.removeEventListener('keyup', onKeyUp)
+    }
   }, [])
 
   // Re-highlight from scratch whenever the comment set changes. Safe to mutate
