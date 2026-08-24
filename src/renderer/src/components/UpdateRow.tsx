@@ -32,12 +32,16 @@ export function UpdateRow({ busy }: { busy: number }): React.ReactElement | null
   )
 
   useEffect(() => {
-    // Two calls on purpose. The cached one paints immediately; the check may
-    // touch the network, and on most launches it no-ops on the daily throttle.
-    void desk.updateStatus().then(setStatus)
     if (started.current) return
     started.current = true
-    void desk.updateCheck(false).then(setStatus)
+    // Sequential, not concurrent. Fired together, the cached read can land
+    // *after* the check and overwrite a fresh answer with a stale one - which
+    // it does whenever the check returns without touching the network, meaning
+    // most launches. Paint the cached one, then let the check replace it.
+    void (async () => {
+      setStatus(await desk.updateStatus())
+      setStatus(await desk.updateCheck(false))
+    })()
   }, [])
 
   const check = useCallback(() => {

@@ -28,7 +28,15 @@ const buildInfo = {
   __BUILD_TIME__: new Date().toISOString(),
   // A build off a dirty tree does not correspond to any commit, so a count of
   // commits behind would be a lie in both directions. Record it and say so.
-  __BUILD_DIRTY__: git('status', '--porcelain') !== '',
+  //
+  // electron-vite bundles this file to `electron.vite.config.<n>.mjs` in the
+  // project root before evaluating it, so that temp file is present in every
+  // single build and made every build look dirty. It is gitignored now, which
+  // is the actual fix, but the filter stays as a belt: the name is generated,
+  // so nobody reading a stale checkout has to know about it.
+  __BUILD_DIRTY__: git('status', '--porcelain')
+    .split('\n')
+    .some((line) => line.trim() !== '' && !/electron\.vite\.config\.\d+\.mjs$/.test(line)),
   __BUILD_REPO__: __dirname,
 }
 
