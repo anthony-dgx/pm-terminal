@@ -118,7 +118,9 @@ export function UpdateRow({ busy }: { busy: number }): React.ReactElement | null
         </div>
       )}
 
-      {running && step && (
+      {/* Stays up after a failure. Clearing it with `running` took the reason
+          away at the exact moment it was needed. */}
+      {(running || step?.error) && step && (
         <div className="upd-progress">
           <div className={`upd-step ${step.error ? 'is-error' : ''}`}>{step.text}</div>
           {tail && <pre className="upd-tail">{tail}</pre>}
