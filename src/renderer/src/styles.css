@@ -56,6 +56,8 @@ code, pre { font-family: var(--mono); }
 .status {
   font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
   padding: 1px 7px; border-radius: 999px; background: var(--bg-3); color: var(--text-dim);
+  /* 'N running elsewhere' is several words and sits in a fixed-height bar. */
+  white-space: nowrap; flex: 0 0 auto;
 }
 .status-running { color: var(--ok); }
 .status-error { color: var(--err); }
@@ -602,7 +604,8 @@ kbd {
   border-radius: 6px; padding: 2px 7px; font-family: var(--mono); font-size: 11px;
 }
 .model-btn:hover { color: var(--text); border-color: var(--accent); }
-.model-caret { font-size: 8px; opacity: 0.7; }
+/* Never let the caret be the thing that gets squeezed - the label shrinks. */
+.model-caret { font-size: 8px; opacity: 0.7; flex: 0 0 auto; }
 .model-menu {
   position: absolute; right: 0; top: calc(100% + 5px); z-index: 60; width: 250px;
   background: var(--bg-2); border: 1px solid var(--line); border-radius: 9px;
@@ -935,10 +938,15 @@ kbd {
 .titlebar-right { min-width: 0; flex-shrink: 1; }
 .titlebar-left { min-width: 0; }
 /* The pickers show a model or profile name, which can be long. Let them
-   truncate instead of pushing the titlebar wider than the window. */
-.model-picker { min-width: 0; }
-.model-btn { max-width: 150px; overflow: hidden; }
-.model-btn > :first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+   truncate instead of pushing the titlebar wider than the window, or wrapping
+   onto a second line and making the whole titlebar taller. */
+.model-picker { min-width: 0; flex: 0 1 auto; }
+/* nowrap on the button itself, because a max-width alone only stops the button
+   growing - the text inside still wraps within it. */
+.model-btn { max-width: 150px; overflow: hidden; white-space: nowrap; flex-shrink: 1; }
+/* `.model-label`, not `> :first-child`: the label needs to be a real element
+   for this to reach it, which is why both pickers wrap it in a span. */
+.model-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .titlebar .cwd-btn { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (max-width: 900px) {

@@ -62,8 +62,9 @@ export function ModelPicker({ clientId, current, live, onChange }: Props): React
 
   return (
     <div className="model-picker" ref={ref}>
-      <button className="model-btn" onClick={() => setOpen((o) => !o)} title="Change model">
-        {short(current)}
+      <button className="model-btn" onClick={() => setOpen((o) => !o)} title={`Change model (${short(current)})`}>
+        {/* Wrapped so it can ellipsise rather than wrap. See ProfilePicker. */}
+        <span className="model-label">{short(current)}</span>
         <span className="model-caret">▾</span>
       </button>
 

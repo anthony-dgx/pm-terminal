@@ -208,8 +208,16 @@ export function ProfilePicker({
 
   return (
     <div className="model-picker">
-      <button className="model-btn" onClick={() => setOpen((o) => !o)} title="Agent profile for new sessions">
-        {active ? active.name : 'no profile'}
+      <button
+        className="model-btn"
+        onClick={() => setOpen((o) => !o)}
+        // The name is truncated in a narrow window, so keep the whole one here.
+        title={active ? `Agent profile: ${active.name}` : 'Agent profile for new sessions'}
+      >
+        {/* The label needs its own element to be the one that ellipsises.
+            As a bare text node it wraps instead, and a two-line profile name
+            makes the titlebar taller than everything else in it. */}
+        <span className="model-label">{active ? active.name : 'no profile'}</span>
         <span className="model-caret">▾</span>
       </button>
       {open && (
