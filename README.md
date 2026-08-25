@@ -125,7 +125,8 @@ Write your own in the Profiles tab.
 desk pet for a rodeo horse and the music for something more appropriate.
 
 **Small comforts.** A pixel pet in the corner that reacts to what the agent is doing, and a music
-player for background lofi.
+player for background lofi. The music does not start on its own - a track is queued and waiting,
+but nothing plays and nothing connects to YouTube until you press play.
 
 ## Getting started
 

@@ -95,6 +95,10 @@ export function Player({ theme = 'default' }: { theme?: string }): React.ReactEl
   const [error, setError] = useState<string | null>(null)
   const [showVideo, setShowVideo] = useState(false)
   const [ready, setReady] = useState(false)
+  // Nothing plays until you ask for it. A track is loaded and ready to go from
+  // the start, but the player itself is not built until the first press, so
+  // launching the app is silent and costs no YouTube connection.
+  const [started, setStarted] = useState(false)
   const hostRef = useRef<HTMLDivElement>(null)
 
   const themeTrack = theme.startsWith('cowboy') ? COWBOY_TRACK : DEFAULT_TRACK
@@ -135,7 +139,7 @@ export function Player({ theme = 'default' }: { theme?: string }): React.ReactEl
   // not start, so this loads their loader and pays for it with a slightly
   // wider script-src in the CSP.
   useEffect(() => {
-    if (!src) return
+    if (!src || !started) return
     let cancelled = false
 
     const build = (): void => {
@@ -202,7 +206,7 @@ export function Player({ theme = 'default' }: { theme?: string }): React.ReactEl
     // volume is intentionally not a dep: it is pushed separately below, and
     // rebuilding the player on every slider tick would restart playback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src])
+  }, [src, started])
 
   useEffect(() => {
     playerRef.current?.setVolume?.(volume)
@@ -218,6 +222,8 @@ export function Player({ theme = 'default' }: { theme?: string }): React.ReactEl
       setError(null)
       setReady(false)
       setSrc(parsed)
+      // Loading a track by hand, or picking a preset, is asking to hear it.
+      setStarted(true)
       void desk.playerWrite({ url: raw.trim(), volume })
     },
     [volume],
@@ -225,7 +231,12 @@ export function Player({ theme = 'default' }: { theme?: string }): React.ReactEl
 
   const toggle = useCallback(() => {
     const p = playerRef.current
-    if (!p) return
+    // First press builds the player, which autoplays on ready. There is nothing
+    // to call playVideo on yet.
+    if (!p) {
+      setStarted(true)
+      return
+    }
     // No optimistic flip: onStateChange sets `playing` once it really happens.
     if (playing) p.pauseVideo()
     else p.playVideo()
@@ -243,7 +254,7 @@ export function Player({ theme = 'default' }: { theme?: string }): React.ReactEl
               {playing ? '❚❚' : '▶'}
             </button>
             <span className="player-label">
-              {ready ? (src.kind === 'playlist' ? 'playlist' : 'lofi') : 'connecting'}
+              {started && !ready ? 'connecting' : src.kind === 'playlist' ? 'playlist' : 'lofi'}
             </span>
           </>
         ) : (
