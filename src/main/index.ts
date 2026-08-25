@@ -11,6 +11,7 @@ import { readGroups, writeGroups } from './groups.js'
 import { defaultCwd, readPlayer, readPrefs, writePlayer, writePrefs } from './prefs.js'
 import { serveRenderer } from './server.js'
 import { profilePrompt, readProfiles, writeProfiles } from './profiles.js'
+import { migrateUserData } from './migrate.js'
 import { applyUpdate, cachedStatus, checkForUpdate } from './update.js'
 import type {
   AgentProfile,
@@ -88,7 +89,7 @@ function createWindow(opts: WindowOptions = {}): BrowserWindow {
     // panels away as it narrows so the chat stays usable.
     minWidth: 380,
     minHeight: 420,
-    title: opts.title ?? 'Claude Desk',
+    title: opts.title ?? 'Atelier',
     titleBarStyle: 'hiddenInset',
     backgroundColor: '#14151a',
     webPreferences: {
@@ -409,6 +410,13 @@ function registerIpc(): void {
 }
 
 void app.whenReady().then(async () => {
+  // First, before anything reads state. The app was renamed, which moved the
+  // userData directory, so this carries the old one's contents across. Doing it
+  // after `createWindow` or after the update tick would mean prefs.json had
+  // already been written fresh under the new name, and the carry-over would see
+  // a file there and skip - losing the theme, the groups and the profiles.
+  await migrateUserData()
+
   registerIpc()
 
   if (!process.env.ELECTRON_RENDERER_URL) {

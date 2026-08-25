@@ -536,7 +536,7 @@ export function App(): React.ReactElement {
     <div className="app">
       <header className="titlebar">
         <div className="titlebar-left">
-          <span className="app-name">Claude Desk</span>
+          <span className="app-name">Atelier</span>
           <button className="cwd-btn" onClick={() => void pickDir()} title="Change working directory">
             {shortCwd}
           </button>
@@ -570,7 +570,7 @@ export function App(): React.ReactElement {
 
       {!env.claudePath && (
         <div className="banner banner-error">
-          Could not find the <code>claude</code> binary. Set <code>CLAUDE_DESK_CLI_PATH</code> and restart.
+          Could not find the <code>claude</code> binary. Set <code>ATELIER_CLI_PATH</code> and restart.
         </div>
       )}
       {conv.info?.error && <div className="banner banner-error">{conv.info.error}</div>}

@@ -1,5 +1,5 @@
 {
-  "name": "claude-desk",
+  "name": "atelier",
   "version": "0.1.0",
   "description": "Electron desktop client for Claude Code with a live MCP/skills inspector and first-class copy affordances",
   "main": "./out/main/index.js",
@@ -13,11 +13,11 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "package": "electron-vite build && electron-builder --dir",
-    "install:app": "npm run package && rm -rf \"$HOME/Applications/Claude Desk.app\" && cp -R \"dist/mac-arm64/Claude Desk.app\" \"$HOME/Applications/\" && /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f \"$HOME/Applications/Claude Desk.app\""
+    "install:app": "npm run package && rm -rf \"$HOME/Applications/Atelier.app\" && cp -R \"dist/mac-arm64/Atelier.app\" \"$HOME/Applications/\" && /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f \"$HOME/Applications/Atelier.app\""
   },
   "build": {
-    "appId": "com.anthonydagneaux.claude-desk",
-    "productName": "Claude Desk",
+    "appId": "com.anthonydagneaux.atelier",
+    "productName": "Atelier",
     "directories": {
       "output": "dist"
     },

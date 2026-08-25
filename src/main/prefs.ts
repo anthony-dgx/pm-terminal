@@ -3,6 +3,7 @@ import { readFile, writeFile, rename, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { envVar } from './env.js'
 
 interface Prefs {
   lastCwd?: string
@@ -62,9 +63,8 @@ export async function writePrefs(next: Prefs): Promise<void> {
  * actually used, then the most recently active Claude Code project.
  */
 export async function defaultCwd(): Promise<string> {
-  if (process.env.CLAUDE_DESK_DEFAULT_CWD && existsSync(process.env.CLAUDE_DESK_DEFAULT_CWD)) {
-    return process.env.CLAUDE_DESK_DEFAULT_CWD
-  }
+  const forced = envVar('DEFAULT_CWD')
+  if (forced && existsSync(forced)) return forced
   const { lastCwd } = await readPrefs()
   if (lastCwd && existsSync(lastCwd)) return lastCwd
 

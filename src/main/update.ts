@@ -17,7 +17,7 @@ import { execFile, execFileSync, spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { chmod, mkdtemp, writeFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { readPrefs, writePrefs } from './prefs.js'
 import type { UpdateProgress, UpdateStatus } from '../shared/types.js'
 
@@ -25,6 +25,15 @@ declare const __BUILD_COMMIT__: string
 declare const __BUILD_TIME__: string
 declare const __BUILD_DIRTY__: boolean
 declare const __BUILD_REPO__: string
+
+/**
+ * The bundle name electron-builder produces, from `productName`.
+ *
+ * Kept as a constant because the swap has to reason about it changing: an
+ * installed bundle from before a rename sits at the old name, and the new build
+ * arrives under this one.
+ */
+const BUNDLE = 'Atelier.app'
 
 /** Once a day. Checking on every launch is noise, and it costs a network round trip. */
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
@@ -94,7 +103,7 @@ function resolveNpm(): string | undefined {
  */
 function installedBundle(): string | undefined {
   if (!app.isPackaged) return undefined
-  // .../Claude Desk.app/Contents/MacOS/Claude Desk
+  // .../Atelier.app/Contents/MacOS/Atelier
   const bundle = dirname(dirname(dirname(app.getPath('exe'))))
   return bundle.endsWith('.app') ? bundle : undefined
 }
@@ -206,16 +215,22 @@ function run(cmd: string, args: string[], cwd: string, onProgress: (p: UpdatePro
  * away, and only then swaps. The swap goes through a `.new` copy and a `.old`
  * rename so that there is no moment where the app is simply absent - a failure
  * halfway through leaves the previous version installed rather than nothing.
+ *
+ * `stale` is a bundle to delete afterwards, set only when the app has been
+ * renamed and the new bundle therefore lands beside the old one rather than on
+ * top of it. It goes last, once the new app is verifiably in place, so a
+ * failure anywhere earlier still leaves a working install.
  */
-function swapScript(src: string, dest: string, pid: number): string {
+function swapScript(src: string, dest: string, pid: number, stale?: string): string {
   return `#!/bin/sh
-# Wait for Claude Desk to exit, then swap the bundle and relaunch it.
+# Wait for the app to exit, then swap the bundle and relaunch it.
 i=0
 while kill -0 ${pid} 2>/dev/null && [ $i -lt 120 ]; do sleep 0.5; i=$((i+1)); done
 if kill -0 ${pid} 2>/dev/null; then exit 1; fi
 
 SRC=${JSON.stringify(src)}
 DEST=${JSON.stringify(dest)}
+STALE=${JSON.stringify(stale ?? '')}
 
 rm -rf "$DEST.new" "$DEST.old"
 cp -R "$SRC" "$DEST.new" || exit 1
@@ -225,6 +240,11 @@ if ! mv "$DEST.new" "$DEST"; then
   exit 1
 fi
 rm -rf "$DEST.old"
+# Both guards matter. Without them an ordinary update, where STALE would be the
+# same path as DEST, deletes the app it has just installed.
+if [ -n "$STALE" ] && [ "$STALE" != "$DEST" ] && [ -d "$STALE" ] && [ -d "$DEST" ]; then
+  rm -rf "$STALE"
+fi
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$DEST"
 open "$DEST"
 `
@@ -238,8 +258,8 @@ open "$DEST"
  * touched and the running app is still the installed one.
  */
 export async function applyUpdate(onProgress: (p: UpdateProgress) => void): Promise<void> {
-  const dest = installedBundle()
-  if (!dest) throw new Error('Updating only works on the installed app, not a dev run.')
+  const running = installedBundle()
+  if (!running) throw new Error('Updating only works on the installed app, not a dev run.')
   if (!existsSync(join(__BUILD_REPO__, '.git'))) {
     throw new Error(`The clone this was built from is gone: ${__BUILD_REPO__}`)
   }
@@ -292,13 +312,20 @@ export async function applyUpdate(onProgress: (p: UpdateProgress) => void): Prom
   onProgress({ type: 'step', text: 'Building the app (this takes a minute)...' })
   await run(npm, ['run', 'package'], __BUILD_REPO__, onProgress)
 
-  const src = join(__BUILD_REPO__, 'dist/mac-arm64/Claude Desk.app')
+  const src = join(__BUILD_REPO__, `dist/mac-arm64/${BUNDLE}`)
   if (!existsSync(src)) throw new Error(`The build finished but produced no app at ${src}.`)
 
+  // Install next to the running app under whatever the new build calls itself,
+  // which is the same path in the ordinary case. It differs only across a
+  // rename, and then the bundle we are running from is the one to clean up -
+  // otherwise both names would sit in the folder and one of them would rot.
+  const dest = join(dirname(running), basename(src))
+  const stale = dest === running ? undefined : running
+
   onProgress({ type: 'step', text: 'Installing...' })
-  const dir = await mkdtemp(join(tmpdir(), 'claude-desk-update-'))
+  const dir = await mkdtemp(join(tmpdir(), 'atelier-update-'))
   const script = join(dir, 'swap.sh')
-  await writeFile(script, swapScript(src, dest, process.pid), 'utf8')
+  await writeFile(script, swapScript(src, dest, process.pid, stale), 'utf8')
   await chmod(script, 0o755)
 
   // Detached and unref'd, so it outlives the quit that is about to happen.

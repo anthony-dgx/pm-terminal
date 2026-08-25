@@ -1,4 +1,4 @@
-# Claude Desk
+# Atelier
 
 A desktop app for Claude Code, for people who use it all day but do not want to live in a terminal.
 
@@ -157,6 +157,12 @@ quiet, and you are back to reinstalling by hand.
 The app opens in the last directory you used. Click the path in the title bar to change it, which
 matters because some MCP servers are configured per directory.
 
+**If you had Claude Desk installed**, this is the same app under a new name. Run `npm run
+install:app` once by hand: the Update button cannot do this particular hop, because the version you
+are running looks for a bundle called `Claude Desk.app` and the build now produces `Atelier.app`.
+Your themes, session groups and agent profiles carry over on first launch. Delete the old
+`Claude Desk.app` from `~/Applications` afterwards. Later renames clean up after themselves.
+
 ## Keyboard shortcuts
 
 | | |
@@ -231,8 +237,10 @@ Five decisions are load-bearing. Each one broke something real when it was missi
   its executable bit (`scripts/fix-node-pty.mjs` restores it on install) and node-pty has to be in
   `asarUnpack`, because that helper is a real executable and cannot be run from inside an asar.
 
-Two environment variables: `CLAUDE_DESK_CLI_PATH` to point at a specific `claude` binary, and
-`CLAUDE_DESK_DEFAULT_CWD` to force a starting directory.
+Two environment variables: `ATELIER_CLI_PATH` to point at a specific `claude` binary, and
+`ATELIER_DEFAULT_CWD` to force a starting directory. The app was called Claude Desk before, so
+`CLAUDE_DESK_CLI_PATH` and `CLAUDE_DESK_DEFAULT_CWD` are still read; the new names win when both
+are set.
 
 Kroks, the cat, is ported from `Lab/black-cat-pet`, itself a fork of DataDog/bits-pet by Eva Chen.
 The rodeo horse is a second cast on the same rig. Catppuccin Mocha uses the published palette from

@@ -121,7 +121,7 @@ export function startMcpLogin(
 
   const executable = resolveClaudeExecutable()
   if (!executable) {
-    throw new Error('Could not find the `claude` binary. Set CLAUDE_DESK_CLI_PATH and restart.')
+    throw new Error('Could not find the `claude` binary. Set ATELIER_CLI_PATH and restart.')
   }
 
   // A GUI-launched app inherits a stripped PATH from launchd. The CLI shells out

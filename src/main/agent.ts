@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
+import { envVar } from './env.js'
 import {
   query,
   type Query,
@@ -33,9 +34,8 @@ import type {
  * install locations Claude Code actually uses.
  */
 export function resolveClaudeExecutable(): string | undefined {
-  if (process.env.CLAUDE_DESK_CLI_PATH && existsSync(process.env.CLAUDE_DESK_CLI_PATH)) {
-    return process.env.CLAUDE_DESK_CLI_PATH
-  }
+  const configured = envVar('CLI_PATH')
+  if (configured && existsSync(configured)) return configured
   try {
     // A login shell picks up nvm/asdf shims that the GUI process never sees.
     const found = execFileSync('/bin/zsh', ['-lic', 'which claude'], {
@@ -196,7 +196,7 @@ export class AgentSession {
   private start(): void {
     const executable = resolveClaudeExecutable()
     if (!executable) {
-      this.setStatus('error', 'Could not find the `claude` binary. Set CLAUDE_DESK_CLI_PATH and restart.')
+      this.setStatus('error', 'Could not find the `claude` binary. Set ATELIER_CLI_PATH and restart.')
       return
     }
 
