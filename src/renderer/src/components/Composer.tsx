@@ -39,12 +39,14 @@ function activeQuery(text: string, caret: number): string | null {
 
 interface Props {
   clientId: string
+  /** The session's directory, needed to list skills before a session exists. */
+  cwd: string
   value: string
   onChange: (v: string) => void
   onSubmit: (images: Attachment[]) => void
   placeholder: string
   disabled: boolean
-  /** Bumped when a session starts, so the live 150-skill list replaces the disk one. */
+  /** Bumped when a session starts, so the live list replaces the pre-session one. */
   skillsKey: number
   /** True while a reply is in flight. */
   working?: boolean
@@ -54,6 +56,7 @@ interface Props {
 
 export function Composer({
   clientId,
+  cwd,
   value,
   onChange,
   onSubmit,
@@ -76,8 +79,8 @@ export function Composer({
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    void desk.skills(clientId).then(setSkills)
-  }, [skillsKey, clientId])
+    void desk.skills(clientId, cwd).then(setSkills)
+  }, [skillsKey, clientId, cwd])
 
   const matches = useMemo(() => (query === null ? [] : rank(skills, query)), [skills, query])
   // Cap what is rendered, but never lie about how many matched.

@@ -93,6 +93,10 @@ old tokens before it starts a new flow. Nothing runs until you confirm, so backi
 - **Profiles** (below)
 - **Usage** for the session: cost, tokens, and how full the context window is
 
+Skills and subagents are listed on a brand-new tab, before you have sent anything, so `/` offers
+your whole set rather than filling up after the first message. `↻` re-asks from scratch, which is
+how a plugin you just installed shows up without a restart.
+
 **Know when the app is stale.** The foot of the side panel says whether you are running the latest
 code, with the commit you built from. It checks once a day on its own, and `↻` checks on demand.
 
@@ -218,7 +222,7 @@ src/renderer/   React 19 UI. Themes are CSS variable swaps on a data-theme attri
 src/shared/     Types shared across the boundary.
 ```
 
-Five decisions are load-bearing. Each one broke something real when it was missing:
+Six decisions are load-bearing. Each one broke something real when it was missing:
 
 - **`settingSources: ['user', 'project', 'local']`** is set explicitly. The Agent SDK loads *no*
   config by default, which would mean no CLAUDE.md, no skills, no plugins and no MCP servers.
@@ -228,6 +232,16 @@ Five decisions are load-bearing. Each one broke something real when it was missi
   origin and the YouTube player refuses to start, with error 153.
 - **Profile prompts are appended** to Claude Code's own system prompt rather than replacing it, so
   its tool and skill guidance survives.
+- **The skill list before a session comes from a throwaway `claude` query** (`src/main/warm.ts`),
+  not from disk. `~/.claude/skills` holds personal skills only - four against the ~150 the CLI
+  really loads - and reconstructing the rest off disk means reimplementing marketplace-to-plugin
+  resolution, `enabledPlugins` and project scoping, and still misses the built-ins. So the probe
+  spawns a query whose input queue never yields, reads `supportedCommands()` and
+  `supportedAgents()` off it in about a second without any prompt being sent, and closes it. It is
+  kept out of `AgentSession` on purpose: that emits status and turn events, so a probe routed
+  through it would make an untouched tab look busy. MCP is deliberately *not* probed this way -
+  `mcpServerStatus()` answers before the servers finish connecting, so it reports a misleading
+  half-connected snapshot, and the disk read lists every configured server honestly instead.
 - **MCP sign-in runs `claude mcp login` through a pty**, not through the Agent SDK. The SDK cannot
   start an OAuth flow at all: `reconnectMcpServer` throws on a needs-auth server, `/mcp` only prints
   a summary, and such a server's tools never reach the model, so nothing elicits. The CLI can do it,

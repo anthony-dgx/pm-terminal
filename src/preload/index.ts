@@ -47,8 +47,14 @@ export interface DeskApi {
   /** Name of the server currently signing in, or null. */
   mcpLoginActive(): Promise<string | null>
   onMcpLogin(cb: (e: McpLoginEvent) => void): () => void
-  skills(clientId: string): Promise<SkillView[]>
-  agents(clientId: string): Promise<AgentView[]>
+  /**
+   * `cwd` is what makes these work before the first message: with no session
+   * there is no directory to infer, and skills are per-directory.
+   */
+  skills(clientId: string, cwd?: string): Promise<SkillView[]>
+  agents(clientId: string, cwd?: string): Promise<AgentView[]>
+  /** Drop cached pre-session lookups so the next read re-asks the CLI. */
+  inspectRefresh(): Promise<void>
   plugins(): Promise<PluginView[]>
   contextUsage(clientId: string): Promise<ContextUsageView | null>
   usage(clientId: string): Promise<UsageView | null>
@@ -128,8 +134,9 @@ const api: DeskApi = {
     ipcRenderer.on('mcp-login', listener)
     return () => ipcRenderer.off('mcp-login', listener)
   },
-  skills: (clientId) => ipcRenderer.invoke('inspect:skills', clientId),
-  agents: (clientId) => ipcRenderer.invoke('inspect:agents', clientId),
+  skills: (clientId, cwd) => ipcRenderer.invoke('inspect:skills', clientId, cwd),
+  agents: (clientId, cwd) => ipcRenderer.invoke('inspect:agents', clientId, cwd),
+  inspectRefresh: () => ipcRenderer.invoke('inspect:refresh'),
   plugins: () => ipcRenderer.invoke('inspect:plugins'),
   contextUsage: (clientId) => ipcRenderer.invoke('inspect:context', clientId),
   usage: (clientId) => ipcRenderer.invoke('inspect:usage', clientId),

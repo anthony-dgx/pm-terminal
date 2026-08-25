@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { envVar } from './env.js'
+import { toAgentViews, toSkillViews } from './commandViews.js'
 import {
   query,
   type Query,
@@ -465,39 +466,12 @@ export class AgentSession {
 
   async skills(): Promise<SkillView[]> {
     if (!this.q) return []
-    // The CLI can report the same command name more than once (a skill reachable
-    // through two sources). Duplicates break list rendering downstream, so keep
-    // the first of each name.
-    const seen = new Set<string>()
-    const cmds = (await this.q.supportedCommands()).filter((c) => {
-      if (seen.has(c.name)) return false
-      seen.add(c.name)
-      return true
-    })
-    return cmds.map((c) => ({
-      name: c.name,
-      description: c.description,
-      argumentHint: c.argumentHint || undefined,
-      aliases: c.aliases,
-      namespace: c.name.includes(':') ? c.name.split(':')[0] : undefined,
-      origin: 'live' as const,
-    }))
+    return toSkillViews(await this.q.supportedCommands())
   }
 
   async agents(): Promise<AgentView[]> {
     if (!this.q) return []
-    const seen = new Set<string>()
-    const list = (await this.q.supportedAgents()).filter((a) => {
-      if (seen.has(a.name)) return false
-      seen.add(a.name)
-      return true
-    })
-    return list.map((a) => ({
-      name: a.name,
-      description: a.description,
-      tools: 'tools' in a && Array.isArray(a.tools) ? (a.tools as string[]) : undefined,
-      model: 'model' in a && typeof a.model === 'string' ? a.model : undefined,
-    }))
+    return toAgentViews(await this.q.supportedAgents())
   }
 
   async models(): Promise<ModelOption[]> {

@@ -5,6 +5,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { AgentSession, resolveClaudeExecutable, type SessionOptions } from './agent.js'
 import { configSummary, readMcpFromDisk, readPlugins, readSkillsFromDisk } from './inspect.js'
+import { clearWarmInspect, warmInspect, type WarmInspect } from './warm.js'
 import { cancelMcpLogin, mcpLoginInProgress, sendMcpLoginInput, startMcpLogin } from './mcpAuth.js'
 import { listHistory, readTranscript, renameSession } from './sessions.js'
 import { readGroups, writeGroups } from './groups.js'
@@ -315,13 +316,31 @@ function registerIpc(): void {
   ipcMain.handle('mcp:loginCancel', (_e, name: string) => cancelMcpLogin(name))
   ipcMain.handle('mcp:loginActive', () => mcpLoginInProgress())
 
-  ipcMain.handle('inspect:skills', async (_e, clientId: string) => {
+  // Skills and agents both come from the CLI's own command list. Order of
+  // preference: the live session, then a probe of the tab's directory (see
+  // warm.ts - a new tab has no session but the user still needs the picker), and
+  // only then the thin disk read.
+  const warmFor = async (clientId: string, cwd?: string): Promise<WarmInspect | null> =>
+    warmInspect(sessionFor(clientId)?.getInfo().cwd ?? cwd ?? (await defaultCwd()))
+
+  ipcMain.handle('inspect:skills', async (_e, clientId: string, cwd?: string) => {
     const live = await sessionFor(clientId)?.skills()
     if (live && live.length) return live
+    const warm = await warmFor(clientId, cwd)
+    if (warm?.skills.length) return warm.skills
     return readSkillsFromDisk()
   })
 
-  ipcMain.handle('inspect:agents', async (_e, clientId: string) => (await sessionFor(clientId)?.agents()) ?? [])
+  ipcMain.handle('inspect:agents', async (_e, clientId: string, cwd?: string) => {
+    const live = await sessionFor(clientId)?.agents()
+    if (live && live.length) return live
+    return (await warmFor(clientId, cwd))?.agents ?? []
+  })
+
+  // The panel's ↻ should genuinely re-ask the CLI rather than re-read a cached
+  // probe, which is the difference between it noticing a just-installed plugin
+  // and appearing to do nothing.
+  ipcMain.handle('inspect:refresh', () => clearWarmInspect())
 
   ipcMain.handle('inspect:plugins', () => readPlugins())
   ipcMain.handle('inspect:summary', () => configSummary())

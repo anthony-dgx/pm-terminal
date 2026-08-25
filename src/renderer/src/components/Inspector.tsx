@@ -527,6 +527,7 @@ function UsagePanel({
 export function Inspector({
   refreshKey,
   clientId,
+  cwd,
   profilesKey,
   onProfilesChanged,
   onClose,
@@ -534,6 +535,8 @@ export function Inspector({
   busy = 0,
 }: {
   clientId: string
+  /** The session's directory, needed to list skills before a session exists. */
+  cwd: string
   refreshKey: number
   profilesKey: number
   onProfilesChanged: () => void
@@ -560,8 +563,8 @@ export function Inspector({
   const refresh = useCallback(async () => {
     const [m, s, a, p, u, c] = await Promise.all([
       desk.mcp(clientId),
-      desk.skills(clientId),
-      desk.agents(clientId),
+      desk.skills(clientId, cwd),
+      desk.agents(clientId, cwd),
       desk.plugins(),
       desk.usage(clientId),
       desk.contextUsage(clientId),
@@ -572,7 +575,7 @@ export function Inspector({
     setPlugins(p)
     setUsage(u)
     setContext(c)
-  }, [clientId])
+  }, [clientId, cwd])
 
   useEffect(() => {
     void refresh()
@@ -623,7 +626,13 @@ export function Inspector({
         <button className={tab === 'usage' ? 'is-on' : ''} onClick={() => setTab('usage')}>
           Usage
         </button>
-        <button className="refresh" onClick={() => void refresh()} title="Refresh">
+        <button
+          className="refresh"
+          // Clear the cached pre-session lookup first, so this re-asks the CLI
+          // instead of handing back the same list it already had.
+          onClick={() => void desk.inspectRefresh().then(refresh)}
+          title="Refresh"
+        >
           ↻
         </button>
         <button className="tab-close" onClick={onClose} title="Hide panel (Cmd+I)">

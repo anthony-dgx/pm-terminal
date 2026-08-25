@@ -670,6 +670,7 @@ export function App(): React.ReactElement {
 
           <Composer
             clientId={activeId}
+            cwd={conv.cwd}
             value={conv.input}
             onChange={(v) => patch(activeId, (c) => ({ ...c, input: v }))}
             onSubmit={(images) => void submit(images)}
@@ -684,6 +685,7 @@ export function App(): React.ReactElement {
         {inspectorOpen ? (
           <Inspector
             clientId={activeId}
+            cwd={conv.cwd}
             refreshKey={inspectorKey}
             focus={inspectorFocus ?? undefined}
             busy={Object.values(conversations).filter((c) => c.awaiting).length}
