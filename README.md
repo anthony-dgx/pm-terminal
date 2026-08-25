@@ -242,6 +242,10 @@ Two environment variables: `ATELIER_CLI_PATH` to point at a specific `claude` bi
 `CLAUDE_DESK_CLI_PATH` and `CLAUDE_DESK_DEFAULT_CWD` are still read; the new names win when both
 are set.
 
+The icon and the titlebar mark are both generated from one illustration by `python3
+scripts/make-icon.py`, which is run by hand and not on install. The source art is committed next to
+it, so the crop and the inset can be changed later without reverse-engineering a PNG.
+
 Kroks, the cat, is ported from `Lab/black-cat-pet`, itself a fork of DataDog/bits-pet by Eva Chen.
 The rodeo horse is a second cast on the same rig. Catppuccin Mocha uses the published palette from
 [catppuccin.com](https://catppuccin.com/).

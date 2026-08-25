@@ -45,6 +45,7 @@ code, pre { font-family: var(--mono); }
 }
 .titlebar button, .titlebar .cwd-btn { -webkit-app-region: no-drag; }
 .titlebar-left, .titlebar-right { display: flex; align-items: center; gap: 10px; }
+.app-mark { width: 20px; height: 20px; display: block; flex: none; }
 .app-name { font-weight: 600; letter-spacing: -0.01em; }
 .cwd-btn {
   background: var(--bg-2); border: 1px solid var(--line); color: var(--text-dim);

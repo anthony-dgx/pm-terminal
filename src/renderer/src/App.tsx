@@ -21,6 +21,7 @@ import { ProfilePicker } from './components/Profiles.js'
 import { Thinking, phaseOf } from './components/Thinking.js'
 import { ThemePicker } from './components/ThemePicker.js'
 import { ReviewContext } from './review.js'
+import logo from './assets/logo.png'
 
 /**
  * One conversation on screen. Several can exist at once and each keeps its own
@@ -536,6 +537,9 @@ export function App(): React.ReactElement {
     <div className="app">
       <header className="titlebar">
         <div className="titlebar-left">
+          {/* Its own class, not part of `.app-name`: the word is hidden in a
+              narrow window, and the mark is what still says which app this is. */}
+          <img className="app-mark" src={logo} alt="" />
           <span className="app-name">Atelier</span>
           <button className="cwd-btn" onClick={() => void pickDir()} title="Change working directory">
             {shortCwd}
