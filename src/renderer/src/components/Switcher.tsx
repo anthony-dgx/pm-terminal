@@ -101,8 +101,11 @@ export function Switcher({ openItems, onPick, onClose, home }: Props): React.Rea
   const results = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) {
-      // Open first, then most recent. Same order the list has anyway.
-      return items.slice(0, MAX_ROWS)
+      // Unread first, then open, then most recent. The titlebar's "N to read"
+      // opens this with no query, so an unread session buried 30 rows down
+      // would make that button useless. Array.sort is stable, so everything
+      // else keeps the order it already had.
+      return [...items].sort((a, b) => Number(!!b.unread) - Number(!!a.unread)).slice(0, MAX_ROWS)
     }
     return items
       .map((item) => ({ item, s: score(item, q) }))

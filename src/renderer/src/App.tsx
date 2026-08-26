@@ -653,7 +653,8 @@ export function App(): React.ReactElement {
         </div>
         <div className="titlebar-right">
           {/* The pastille lives on the session row, but the sessions panel can
-              be closed, so say it here too. Clicking jumps to the answer. */}
+              be closed, so say it here too. Clicking opens the switcher, which
+              sorts the unread ones to the top, so enter goes straight there. */}
           {unreadCount > 0 && (
             <button
               className="status status-unread"

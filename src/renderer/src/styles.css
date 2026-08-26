@@ -850,11 +850,13 @@ kbd {
 /* Three states, three colours, so a glance is enough: green is working,
    amber is answered and waiting on you, and the switcher's blue 'open' is
    just where a session already is. Amber is a theme variable, so all ten
-   flavors follow. */
+   flavors follow. Latte is the exception and is fixed further down. */
 
+/* currentColor, not --warn: the dot always sits inside a label that is already
+   amber, so it follows every theme override for free. */
 .pip {
   display: inline-block; flex: 0 0 auto;
-  width: 6px; height: 6px; border-radius: 999px; background: var(--warn);
+  width: 6px; height: 6px; border-radius: 999px; background: currentColor;
 }
 .hist-new {
   display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
@@ -864,13 +866,20 @@ kbd {
    for the badge. */
 .hist.is-unread .hist-title { color: var(--text); font-weight: 600; }
 
+/* Mixed against --bg, not --bg-3: the amber fill lightens whatever it sits on,
+   and against --bg-3 it climbed close enough to the amber text to drop high
+   noon, prairie dusk and frappe under 4.5:1 at 11px. Against --bg the worst
+   theme is 5.33. */
 .status-unread {
   display: inline-flex; align-items: center; gap: 5px;
   border: 0; color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 16%, var(--bg-3));
+  background: color-mix(in srgb, var(--warn) 16%, var(--bg));
 }
+/* 12%, not the 22% the 'open' badge uses: this badge's ink is amber too, so a
+   heavier amber fill closes the gap instead of opening it. High noon was the
+   one that fell under 4.5:1 at 9.5px. */
 .switch-badge.is-unread {
-  background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn);
 }
 
 /* ---- cowboy theme ------------------------------------------------------ */
@@ -1137,6 +1146,21 @@ kbd {
 }
 :root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .btn-deny {
   border-color: var(--err); color: var(--err);
+}
+/* Latte only, and latte alone among the ten: it is the one light background, so
+   the unread amber lands at about 1.5:1 there and the badge disappears. Darker
+   ink and a stronger fill put it back over 4.5:1. The pip follows currentColor,
+   so it is covered by the same rule. */
+:root[data-theme='catppuccin-latte'] .hist-new,
+:root[data-theme='catppuccin-latte'] .status-unread,
+:root[data-theme='catppuccin-latte'] .switch-badge.is-unread {
+  color: #6d3f00;
+}
+:root[data-theme='catppuccin-latte'] .status-unread {
+  background: color-mix(in srgb, var(--warn) 34%, var(--bg-3));
+}
+:root[data-theme='catppuccin-latte'] .switch-badge.is-unread {
+  background: color-mix(in srgb, var(--warn) 40%, transparent);
 }
 
 /* ---- dracula ------------------------------------------------------------ */
