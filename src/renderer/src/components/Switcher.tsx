@@ -23,6 +23,8 @@ export interface SwitcherItem {
   /** Null for a conversation that has not started, so has no session yet. */
   sessionId: string | null
   open: boolean
+  /** Open and holding an answer nobody has read. Never true for a recorded one. */
+  unread?: boolean
   /** Sort key within a section. */
   at: number
   entry: HistoryEntry | null
@@ -177,6 +179,11 @@ export function Switcher({ openItems, onPick, onClose, home }: Props): React.Rea
                     reach, which is what broke the titlebar pickers. */}
                 <span className="switch-name">{item.title}</span>
                 {item.open && <span className="switch-badge">open</span>}
+                {item.unread && (
+                  <span className="switch-badge is-unread" title="Answered while you were elsewhere">
+                    new
+                  </span>
+                )}
               </span>
               <span className="switch-cwd">{shorten(item.cwd)}</span>
             </button>

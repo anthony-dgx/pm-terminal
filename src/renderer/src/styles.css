@@ -846,6 +846,33 @@ kbd {
 }
 .status-elsewhere { color: var(--ok); }
 
+/* ---- unread answers ---------------------------------------------------- */
+/* Three states, three colours, so a glance is enough: green is working,
+   amber is answered and waiting on you, and the switcher's blue 'open' is
+   just where a session already is. Amber is a theme variable, so all ten
+   flavors follow. */
+
+.pip {
+  display: inline-block; flex: 0 0 auto;
+  width: 6px; height: 6px; border-radius: 999px; background: var(--warn);
+}
+.hist-new {
+  display: inline-flex; align-items: center; gap: 4px; flex: 0 0 auto;
+  color: var(--warn); text-transform: uppercase; letter-spacing: 0.05em; font-size: 9px;
+}
+/* The row itself lifts out of the list, so the panel reads without hunting
+   for the badge. */
+.hist.is-unread .hist-title { color: var(--text); font-weight: 600; }
+
+.status-unread {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 0; color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 16%, var(--bg-3));
+}
+.switch-badge.is-unread {
+  background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn);
+}
+
 /* ---- cowboy theme ------------------------------------------------------ */
 /* Every surface reads from these variables, so a palette swap is the whole
    theme. Sun-bleached leather, cream paper, amber at sundown.

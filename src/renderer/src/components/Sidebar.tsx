@@ -52,6 +52,8 @@ interface SessionRowProps {
   home: string
   active: boolean
   busy: boolean
+  /** An answer arrived here while you were looking somewhere else. */
+  unread: boolean
   groups: SessionGroup[]
   /** Group this session currently sits in, if any. */
   groupId: string | null
@@ -68,6 +70,7 @@ function SessionRow({
   home,
   active,
   busy,
+  unread,
   groups,
   groupId,
   onAssign,
@@ -99,7 +102,7 @@ function SessionRow({
 
   return (
     <div
-      className={`hist ${active ? 'is-active' : ''}`}
+      className={`hist ${active ? 'is-active' : ''} ${unread ? 'is-unread' : ''}`}
       // Dragging must be off while renaming or the input cannot be selected.
       draggable={!editing}
       onDragStart={(e) => {
@@ -144,6 +147,14 @@ function SessionRow({
       <div className="hist-meta">
         <span className="hist-cwd">{shortCwd(entry.cwd, home)}</span>
         {busy ? <span className="hist-busy" title="Working in this session">working</span> : null}
+        {/* Only when idle: while it is still working, "working" is the truer
+            label and two badges on one row is noise. */}
+        {unread && !busy ? (
+          <span className="hist-new" title="Answered while you were elsewhere">
+            <span className="pip" />
+            new
+          </span>
+        ) : null}
         <span>{relativeTime(entry.modifiedMs)}</span>
       </div>
       {!editing && (
@@ -404,6 +415,8 @@ interface Props {
   onClose: () => void
   /** Sessions with work in flight, marked so they are visible while hidden. */
   busySessionIds: string[]
+  /** Sessions holding an answer that has not been read yet. */
+  unreadSessionIds: string[]
   /** Incremented by the host (Cmd+G) to create a group. */
   newGroupSignal: number
 }
@@ -418,6 +431,7 @@ export function Sidebar({
   activityKey,
   onClose,
   busySessionIds,
+  unreadSessionIds,
   newGroupSignal,
 }: Props): React.ReactElement {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
@@ -622,6 +636,7 @@ export function Sidebar({
   }, [])
 
   const busy = new Set(busySessionIds)
+  const unread = new Set(unreadSessionIds)
   /** sessionId -> the group holding it, for the per-row menu. */
   const groupOf = new Map<string, string>()
   for (const g of groups) for (const sid of g.sessionIds) groupOf.set(sid, g.id)
@@ -705,6 +720,7 @@ export function Sidebar({
                       entry={e}
                       active={activeSessionId === e.sessionId}
                       busy={busy.has(e.sessionId)}
+                      unread={unread.has(e.sessionId)}
                       groupId={groupOf.get(e.sessionId) ?? null}
                       {...rowProps}
                     />
@@ -744,6 +760,7 @@ export function Sidebar({
                       entry={e}
                       active={activeSessionId === e.sessionId}
                       busy={busy.has(e.sessionId)}
+                      unread={unread.has(e.sessionId)}
                       groupId={groupOf.get(e.sessionId) ?? null}
                       {...rowProps}
                     />

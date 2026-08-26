@@ -44,6 +44,12 @@ interface Conversation {
   info: SessionInfo | null
   awaiting: boolean
   awaitSince: number
+  /**
+   * An answer arrived while this conversation was not the one on screen. Set
+   * when a turn finishes elsewhere, cleared the moment you switch to it. Never
+   * persisted: a stale flag from yesterday says nothing useful.
+   */
+  unread: boolean
   input: string
   cwd: string
   model: string | null
@@ -62,6 +68,7 @@ function blankConversation(over: Partial<Conversation> = {}): Conversation {
     info: null,
     awaiting: false,
     awaitSince: 0,
+    unread: false,
     input: '',
     cwd: '',
     model: null,
@@ -122,6 +129,8 @@ export function App(): React.ReactElement {
   const [winWidth, setWinWidth] = useState(() => window.innerWidth)
   const [notices, setNotices] = useState<{ level: string; text: string }[]>([])
   const [inspectorKey, setInspectorKey] = useState(0)
+  /** Bumped for any conversation, so the sessions list stays in step. */
+  const [activityKey, setActivityKey] = useState(0)
   const [inspectorFocus, setInspectorFocus] = useState<{ tab: InspectorTab; nonce: number } | null>(
     null,
   )
@@ -149,6 +158,19 @@ export function App(): React.ReactElement {
       return { ...prev, [id]: fn(c) }
     })
   }, [])
+
+  /**
+   * The one way to change which conversation is on screen. Every caller goes
+   * through here so the unread mark is cleared in a single place: showing a
+   * conversation is what "reading it" means.
+   */
+  const select = useCallback(
+    (id: string) => {
+      setActiveId(id)
+      patch(id, (c) => (c.unread ? { ...c, unread: false } : c))
+    },
+    [patch],
+  )
 
   useEffect(() => {
     void desk.env().then((e) => {
@@ -185,7 +207,14 @@ export function App(): React.ReactElement {
             const streamBuffers = { ...c.streamBuffers }
             delete streamBuffers[e.turn.id]
             const done = e.turn.role === 'assistant' && e.turn.streaming === false
-            return { ...c, turns, streamBuffers, awaiting: done ? false : c.awaiting }
+            return {
+              ...c,
+              turns,
+              streamBuffers,
+              awaiting: done ? false : c.awaiting,
+              // An answer that landed on screen has been read by definition.
+              unread: done && !isActive() ? true : c.unread,
+            }
           })
           if (e.turn.role === 'assistant' && e.turn.streaming === false && isActive()) poke('meow')
           break
@@ -212,7 +241,12 @@ export function App(): React.ReactElement {
           patch(clientId, (c) => ({ ...c, permissions: c.permissions.filter((p) => p.id !== e.id) }))
           break
         case 'inspector-dirty':
+          // The panel describes the session on screen, so it only refreshes for
+          // that one. The sessions list describes all of them: a session that
+          // started or answered while hidden has no row yet, and without a row
+          // there is nothing to mark as unread.
           if (isActive()) setInspectorKey((k) => k + 1)
+          setActivityKey((k) => k + 1)
           break
         case 'notice':
           setNotices((prev) => [...prev.slice(-4), { level: e.level, text: e.text }])
@@ -455,7 +489,7 @@ export function App(): React.ReactElement {
         (c) => c.entry?.sessionId === entry.sessionId || c.sessionId === entry.sessionId,
       )
       if (existing) {
-        setActiveId(existing.id)
+        select(existing.id)
         return
       }
       const t = await desk.historyRead(entry.projectSlug, entry.sessionId)
@@ -468,9 +502,9 @@ export function App(): React.ReactElement {
         profileId: env?.defaultProfileId ?? null,
       })
       setConversations((prev) => ({ ...prev, [next.id]: next }))
-      setActiveId(next.id)
+      select(next.id)
     },
-    [conversations, env],
+    [conversations, env, select],
   )
 
   /**
@@ -486,6 +520,7 @@ export function App(): React.ReactElement {
         detail: c.entry?.firstPrompt ?? c.input,
         sessionId: c.sessionId ?? c.entry?.sessionId ?? null,
         open: true,
+        unread: c.unread,
         at: c.turns.length ? Date.parse(c.turns[c.turns.length - 1].at) || 0 : 0,
         entry: null,
       })),
@@ -498,9 +533,9 @@ export function App(): React.ReactElement {
       // An open one is just a switch. A recorded one goes through openEntry,
       // which loads the transcript and de-dupes against what is already open.
       if (item.entry) void openEntry(item.entry)
-      else setActiveId(item.key)
+      else select(item.key)
     },
-    [openEntry],
+    [openEntry, select],
   )
 
   /** Open it and start the agent immediately, without waiting for a prompt. */
@@ -525,7 +560,7 @@ export function App(): React.ReactElement {
           }),
         }))
       }
-      setActiveId(id)
+      select(id)
       const started = await desk.startSession(id, {
         cwd: entry.cwd,
         resume: entry.sessionId,
@@ -534,8 +569,9 @@ export function App(): React.ReactElement {
       })
       patch(id, (c) => ({ ...c, info: started, started: true }))
       setInspectorKey((k) => k + 1)
+      setActivityKey((k) => k + 1)
     },
-    [conversations, env, patch],
+    [conversations, env, patch, select],
   )
 
   const newConversation = useCallback(
@@ -547,9 +583,9 @@ export function App(): React.ReactElement {
         profileId: profileId !== undefined ? profileId : env.defaultProfileId,
       })
       setConversations((prev) => ({ ...prev, [next.id]: next }))
-      setActiveId(next.id)
+      select(next.id)
     },
-    [env, conversations, activeId],
+    [env, conversations, activeId, select],
   )
 
   newConversationRef.current = newConversation
@@ -583,12 +619,23 @@ export function App(): React.ReactElement {
     [conversations],
   )
 
+  /** Session ids holding an answer nobody has looked at yet. */
+  const unreadSessionIds = useMemo(
+    () =>
+      Object.values(conversations)
+        .filter((c) => c.unread)
+        .map((c) => c.sessionId ?? c.entry?.sessionId ?? '')
+        .filter(Boolean),
+    [conversations],
+  )
+
   if (!env || !conv) return <div className="boot">Loading...</div>
 
   const shortCwd = conv.cwd.startsWith(env.home) ? `~${conv.cwd.slice(env.home.length)}` : conv.cwd
   const viewingArchive = Boolean(conv.entry) && !conv.started
   const statusLabel = viewingArchive ? 'opened' : (conv.info?.status ?? 'idle')
   const otherBusy = Object.values(conversations).filter((c) => c.awaiting && c.id !== activeId).length
+  const unreadCount = Object.values(conversations).filter((c) => c.unread).length
 
   return (
     <ReviewContext.Provider value={openReview}>
@@ -605,6 +652,18 @@ export function App(): React.ReactElement {
           <ThemePicker current={theme} onChange={chooseTheme} />
         </div>
         <div className="titlebar-right">
+          {/* The pastille lives on the session row, but the sessions panel can
+              be closed, so say it here too. Clicking jumps to the answer. */}
+          {unreadCount > 0 && (
+            <button
+              className="status status-unread"
+              onClick={() => setSwitcherOpen(true)}
+              title="Answers you have not read yet"
+            >
+              <span className="pip" />
+              {winWidth >= 900 ? `${unreadCount} to read` : unreadCount}
+            </button>
+          )}
           {otherBusy > 0 && (
             <span className="status status-elsewhere" title="Other sessions are still working">
               {winWidth >= 900 ? `${otherBusy} running elsewhere` : otherBusy}
@@ -658,10 +717,11 @@ export function App(): React.ReactElement {
               home={env.home}
               activeSessionId={conv.sessionId ?? conv.entry?.sessionId ?? null}
               busySessionIds={busySessionIds}
+              unreadSessionIds={unreadSessionIds}
               onOpen={(e) => void openEntry(e)}
               onResume={(e) => void resumeEntry(e)}
               onNew={() => newConversation()}
-              activityKey={inspectorKey}
+              activityKey={activityKey}
               onNewInGroup={(gProfileId) => newConversation(gProfileId ?? null)}
               onClose={toggleSidebar}
               newGroupSignal={newGroupSignal}

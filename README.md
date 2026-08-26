@@ -31,7 +31,9 @@ draft. **Copy all** takes the whole reply.
 bar shows what it is doing and for how long, with a Stop button.
 
 **Run several sessions at once.** Start something slow, switch away, keep working. The sidebar marks
-the ones still running.
+the ones still running in green, and puts an amber dot on the ones that answered while you were
+somewhere else. The dot clears when you open the session. The title bar counts them, so it still
+tells you even with the panel closed.
 
 **Find any session.** History is listed and searchable, split into Today / This week / Before. Make
 coloured groups and drag sessions into them. Double-click to rename. `Cmd+F` jumps straight to a
