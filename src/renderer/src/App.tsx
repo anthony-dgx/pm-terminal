@@ -18,6 +18,7 @@ import { Player } from './components/Player.js'
 import { ModelPicker } from './components/ModelPicker.js'
 import { Composer } from './components/Composer.js'
 import { ProfilePicker } from './components/Profiles.js'
+import { Switcher, type SwitcherItem } from './components/Switcher.js'
 import { Thinking, phaseOf } from './components/Thinking.js'
 import { ThemePicker } from './components/ThemePicker.js'
 import { ReviewContext } from './review.js'
@@ -78,6 +79,27 @@ function modelOfTurns(turns: Turn[]): string | null {
   return null
 }
 
+/**
+ * What to call an open conversation in the switcher. History gives recorded
+ * ones a real title, but a conversation started here has none until it is
+ * saved, so fall back to what was actually asked in it.
+ */
+function conversationTitle(c: Conversation): string {
+  if (c.entry?.title) return c.entry.title
+  for (const t of c.turns) {
+    if (t.role !== 'user') continue
+    const text = t.blocks
+      .map((b) => (b.kind === 'text' ? b.text : ''))
+      .join(' ')
+      .trim()
+    if (text) return text.length > 80 ? `${text.slice(0, 80)}...` : text
+  }
+  // A draft in the composer is the only signal left on a tab never sent.
+  const draft = c.input.trim()
+  if (draft) return draft.length > 80 ? `${draft.slice(0, 80)}...` : draft
+  return 'New session'
+}
+
 export function App(): React.ReactElement {
   const [env, setEnv] = useState<{
     home: string
@@ -106,6 +128,7 @@ export function App(): React.ReactElement {
   const focusNonce = useRef(1)
   // Bumped to ask the sidebar to create a group; it owns the group state.
   const [newGroupSignal, setNewGroupSignal] = useState(0)
+  const [switcherOpen, setSwitcherOpen] = useState(false)
   const [kroks, setKroks] = useState<KroksReaction>(null)
   const kroksSeq = useRef(0)
   const poke = useCallback((kind: 'meow' | 'perk') => {
@@ -297,6 +320,11 @@ export function App(): React.ReactElement {
           // Via a ref: the handler is installed before newConversation exists.
           newConversationRef.current()
           break
+        case 'f':
+          e.preventDefault()
+          // Toggle, so the same keystroke that opened it puts it away.
+          setSwitcherOpen((o) => !o)
+          break
         case 'g':
           e.preventDefault()
           // A group created into a hidden sidebar would be invisible, so
@@ -445,6 +473,36 @@ export function App(): React.ReactElement {
     [conversations, env],
   )
 
+  /**
+   * The conversations already on screen, for the switcher. These are the ones
+   * the sidebar cannot show: an unsaved tab has no history row yet.
+   */
+  const openItems = useMemo<SwitcherItem[]>(
+    () =>
+      Object.values(conversations).map((c) => ({
+        key: c.id,
+        title: conversationTitle(c),
+        cwd: c.cwd,
+        detail: c.entry?.firstPrompt ?? c.input,
+        sessionId: c.sessionId ?? c.entry?.sessionId ?? null,
+        open: true,
+        at: c.turns.length ? Date.parse(c.turns[c.turns.length - 1].at) || 0 : 0,
+        entry: null,
+      })),
+    [conversations],
+  )
+
+  const pickSession = useCallback(
+    (item: SwitcherItem) => {
+      setSwitcherOpen(false)
+      // An open one is just a switch. A recorded one goes through openEntry,
+      // which loads the transcript and de-dupes against what is already open.
+      if (item.entry) void openEntry(item.entry)
+      else setActiveId(item.key)
+    },
+    [openEntry],
+  )
+
   /** Open it and start the agent immediately, without waiting for a prompt. */
   const resumeEntry = useCallback(
     async (entry: HistoryEntry) => {
@@ -571,6 +629,15 @@ export function App(): React.ReactElement {
           )}
         </div>
       </header>
+
+      {switcherOpen && (
+        <Switcher
+          openItems={openItems}
+          onPick={pickSession}
+          onClose={() => setSwitcherOpen(false)}
+          home={env.home}
+        />
+      )}
 
       {!env.claudePath && (
         <div className="banner banner-error">

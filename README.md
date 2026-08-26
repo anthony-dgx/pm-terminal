@@ -172,6 +172,7 @@ Your themes, session groups and agent profiles carry over on first launch. Delet
 | | |
 | --- | --- |
 | `Cmd+T` | New session |
+| `Cmd+F` | Jump to a session. Type to filter, arrows to move, enter to open |
 | `Cmd+G` | New group |
 | `Cmd+B` | Show or hide the sessions panel |
 | `Cmd+I` | Show or hide the side panel |
