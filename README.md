@@ -6,6 +6,11 @@ It runs the real Claude Code underneath, so everything you have already set up k
 `CLAUDE.md`, your skills, your plugins, your MCP servers, your permission rules. Nothing is
 reconfigured, nothing is duplicated. Same agent, better window.
 
+![The main window: a session open, tool work folded away, a draft ready to copy](docs/screenshots/chat.png)
+
+*Screenshots are taken against a throwaway home directory with invented sessions, so nothing in them
+is real work.*
+
 ## Who this is for
 
 Product managers and other non-engineers who use Claude Code for real work and keep hitting the same
@@ -42,12 +47,19 @@ Each keeps its own conversation, and the sidebar marks the ones still running.
 anything by double-clicking, and reorder groups. Click a session and start typing to carry on where
 you left off, on the model it was already using.
 
+`Cmd+F` jumps to any of them without touching the sidebar. Type to filter, arrows to move, enter to
+open. Sessions already open are listed first and marked.
+
+![The Cmd+F session switcher, filtered, with the open session marked](docs/screenshots/switcher.png)
+
 **Review a document the way you would in Google Docs.** When Claude writes a document, the reply
 carries a **Review** button - on a fenced markdown block, or on the whole answer. It opens the
 document in **its own window**, formatted, with a comment rail down the side.
 
 The button only appears on an actual document, meaning something with a heading and a few blocks
 under it. An ordinary reply does not get one, however long it runs.
+
+![The reader: a comment on a highlighted phrase, with Ready for changes in the header](docs/screenshots/reader.png)
 
 - Select any text and a comment box appears in the rail. `Cmd+Enter` commits it. The text turns
   yellow, and clicking either the highlight or the card links the pair.
@@ -92,6 +104,8 @@ old tokens before it starts a new flow. Nothing runs until you confirm, so backi
 - **Skills** available to the session, searchable, plus subagents and plugins
 - **Profiles** (below)
 - **Usage** for the session: cost, tokens, and how full the context window is
+
+![The side panel open on MCP, showing configured servers and their status](docs/screenshots/inspector.png)
 
 Skills and subagents are listed on a brand-new tab, before you have sent anything, so `/` offers
 your whole set rather than filling up after the first message. `↻` re-asks from scratch, which is
