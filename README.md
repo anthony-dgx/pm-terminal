@@ -36,10 +36,10 @@ somewhere else. The dot clears when you open the session. The title bar counts t
 tells you even with the panel closed.
 
 **Find any session.** History is listed and searchable, split into Today / This week / Before. Make
-coloured groups and drag sessions into them. Double-click to rename. `Cmd+F` jumps straight to a
+coloured groups and drag sessions into them. Double-click to rename. `Cmd+K` jumps straight to a
 session: type to filter, arrows to move, enter to open. Open ones come first.
 
-![The Cmd+F session switcher, filtered, with the open session marked](docs/screenshots/switcher.png)
+![The Cmd+K session switcher, filtered, with the open session marked](docs/screenshots/switcher.png)
 
 **Review a document like you would in Google Docs.** When Claude writes a document, the reply gets a
 **Review** button. It opens in its own window, formatted, with a comment rail.
@@ -116,7 +116,7 @@ A few things worth knowing:
 | | |
 | --- | --- |
 | `Cmd+T` | New session |
-| `Cmd+F` | Jump to a session |
+| `Cmd+K` | Jump to a session |
 | `Cmd+G` | New group |
 | `Cmd+B` | Show or hide the sessions panel |
 | `Cmd+I` | Show or hide the side panel |

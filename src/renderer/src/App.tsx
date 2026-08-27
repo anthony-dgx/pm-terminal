@@ -354,7 +354,7 @@ export function App(): React.ReactElement {
           // Via a ref: the handler is installed before newConversation exists.
           newConversationRef.current()
           break
-        case 'f':
+        case 'k':
           e.preventDefault()
           // Toggle, so the same keystroke that opened it puts it away.
           setSwitcherOpen((o) => !o)
