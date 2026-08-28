@@ -610,6 +610,15 @@ kbd {
   position: absolute; right: 0; top: calc(100% + 5px); z-index: 60; width: 250px;
   background: var(--bg-2); border: 1px solid var(--line); border-radius: 9px;
   padding: 5px; box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+  /* The gateway list can be a dozen rows on its own, so the menu has to scroll
+     rather than run off the bottom of the window. */
+  max-height: 60vh; overflow-y: auto;
+}
+/* Sticks like .slash-head, so the group is still named while you scroll it. */
+.model-group {
+  padding: 6px 7px 3px; font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--text-faint);
+  position: sticky; top: -5px; background: var(--bg-2);
 }
 .model-menu-left { right: auto; left: 0; }
 .model-loading { font-size: 11px; color: var(--text-faint); padding: 6px 7px; line-height: 1.45; }

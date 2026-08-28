@@ -5,6 +5,8 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { envVar } from './env.js'
 import { toAgentViews, toSkillViews } from './commandViews.js'
+import { gatewayInstalled, gatewayModels, gatewayShim } from './gateway.js'
+import { isGatewayModel } from '../shared/gateway.js'
 import {
   query,
   type Query,
@@ -28,6 +30,22 @@ import type {
   Turn,
   UsageView,
 } from '../shared/types.js'
+
+/**
+ * Native Claude models, for when the real list cannot be fetched: before a
+ * session exists, or from a gateway session. The SDK resolves these aliases to
+ * whatever the current generation is.
+ */
+const NATIVE_ALIASES: ModelOption[] = [
+  { value: 'opus', displayName: 'Opus', description: 'Most capable' },
+  { value: 'sonnet', displayName: 'Sonnet', description: 'Balanced' },
+  { value: 'haiku', displayName: 'Haiku', description: 'Fastest' },
+]
+
+/** The model list for a conversation that has no session yet. */
+export function defaultModels(): ModelOption[] {
+  return [...NATIVE_ALIASES, ...gatewayModels()]
+}
 
 /**
  * Resolve the real `claude` binary. A packaged Electron app inherits a stripped
@@ -174,6 +192,13 @@ export class AgentSession {
   private turns: Turn[] = []
   private info: SessionInfo
   private opts: SessionOptions
+  /**
+   * The model the live process was actually spawned on, which is what gateway
+   * routing was fixed to. Not the same as `opts.model` once a switch has been
+   * refused: that holds the pick being saved for next time. Comparing against
+   * `opts.model` would then refuse a later native-to-native switch too.
+   */
+  private spawnedModel: string | null = null
   private emit: (e: MainEvent) => void
 
   constructor(opts: SessionOptions, emit: (e: MainEvent) => void) {
@@ -220,16 +245,36 @@ export class AgentSession {
       return
     }
 
+    // A gateway model runs the real binary through the AI Gateway proxy's process
+    // wrapper rather than directly. The wrapper owns provider routing, including
+    // which model answers, so `--model` must not also be passed: the two would
+    // disagree and the flag would win with a name the gateway does not know.
+    const wantsGateway = isGatewayModel(this.opts.model)
+    const shim = wantsGateway ? gatewayShim(this.opts.model as string, executable) : null
+    if (wantsGateway && !shim) {
+      this.setStatus(
+        'error',
+        gatewayInstalled()
+          ? 'The Datadog AI Gateway proxy no longer offers that model. Pick another one.'
+          : 'That model needs the Datadog AI Gateway proxy, which is not installed. Install it, then pick the model again.',
+      )
+      return
+    }
+
     this.setStatus('starting')
     const loginPath = resolveLoginPath()
+    this.spawnedModel = this.opts.model ?? null
     this.q = query({
       prompt: this.queue,
       options: {
         cwd: this.opts.cwd,
-        model: this.opts.model,
+        model: shim ? undefined : this.opts.model,
         resume: this.opts.resume,
         permissionMode: this.opts.permissionMode ?? 'default',
-        pathToClaudeCodeExecutable: executable,
+        pathToClaudeCodeExecutable: shim ?? executable,
+        // The login PATH matters doubly for a gateway session: the proxy's auth
+        // preflight shells out to `ddtool`, which launchd's stripped PATH does
+        // not have either.
         ...(loginPath ? { env: { ...process.env, PATH: loginPath } } : {}),
         // Append rather than replace: substituting the preset would drop Claude
         // Code's own tool and skill guidance.
@@ -495,27 +540,61 @@ export class AgentSession {
     return toAgentViews(await this.q.supportedAgents())
   }
 
+  /**
+   * The models this session can offer. Native Claude models come from the live
+   * session when there is one, aliases otherwise, and the gateway's own list is
+   * appended whenever the proxy is installed.
+   *
+   * A gateway session is deliberately never asked. Under the proxy,
+   * `supportedModels()` answers from the gateway's discovery endpoint, so the
+   * list would be the proxy's client-facing names rather than the values Atelier
+   * routes on, and the native models would disappear from the picker entirely.
+   */
   async models(): Promise<ModelOption[]> {
-    if (!this.q) return []
-    try {
-      const list = await this.q.supportedModels()
-      return list.map((m) => ({
-        value: m.value,
-        displayName: m.displayName,
-        description: m.description,
-        supportsEffort: m.supportsEffort,
-      }))
-    } catch {
-      return []
+    let native: ModelOption[] = []
+    if (this.q && !isGatewayModel(this.opts.model)) {
+      try {
+        native = (await this.q.supportedModels()).map((m) => ({
+          value: m.value,
+          displayName: m.displayName,
+          description: m.description,
+          supportsEffort: m.supportsEffort,
+        }))
+      } catch {
+        // Fall through to the aliases, which always resolve.
+      }
     }
+    if (!native.length) native = NATIVE_ALIASES
+    return [...native, ...gatewayModels()]
   }
 
   /**
    * Switch models. Applies to the live session immediately when there is one,
    * and is remembered so a later session starts on the same model.
+   *
+   * Anything involving a gateway model is the exception: it cannot happen in
+   * place. Which model answers behind the gateway is baked into the launcher at
+   * spawn time, and the proxy also remaps the `opus`/`sonnet`/`haiku` aliases
+   * onto gateway models. So all three of gateway-to-gateway, gateway-to-native
+   * and native-to-gateway would fail quietly rather than loudly: the first would
+   * hand the SDK a value it has never seen, and the other two would answer from
+   * the wrong model. Only native-to-native is safe live. The pick is kept for the
+   * next session in every other case.
+   *
+   * The comparison is against the model the process was spawned on, not the last
+   * pick, so a refused switch does not go on to refuse a native one after it.
    */
   async setModel(model: string): Promise<SessionInfo> {
+    const bothNative = !isGatewayModel(model) && !isGatewayModel(this.spawnedModel)
     this.opts = { ...this.opts, model }
+    if (this.q && !bothNative) {
+      this.emit({
+        type: 'notice',
+        level: 'warn',
+        text: 'Saved for your next session. Gateway routing is fixed when a session starts, so a running one cannot switch to or from a gateway model.',
+      })
+      return this.info
+    }
     if (this.q) await this.q.setModel(model)
     this.info = { ...this.info, model }
     this.emit({ type: 'session', info: this.info })

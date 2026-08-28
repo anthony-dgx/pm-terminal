@@ -36,6 +36,8 @@ export interface DeskApi {
   answerPermission(clientId: string, id: string, answer: PermissionAnswer): Promise<void>
   models(clientId: string): Promise<ModelOption[]>
   setModel(clientId: string, model: string): Promise<SessionInfo | null>
+  /** Whether the Datadog AI Gateway proxy is installed, so its models are offered. */
+  gatewayInstalled(): Promise<boolean>
 
   mcp(clientId: string): Promise<McpServerView[]>
   reconnectMcp(clientId: string, name: string): Promise<McpServerView[]>
@@ -122,6 +124,7 @@ const api: DeskApi = {
   answerPermission: (clientId, id, answer) => ipcRenderer.invoke('permission:answer', clientId, id, answer),
   models: (clientId) => ipcRenderer.invoke('session:models', clientId),
   setModel: (clientId, model) => ipcRenderer.invoke('session:setModel', clientId, model),
+  gatewayInstalled: () => ipcRenderer.invoke('gateway:installed'),
 
   mcp: (clientId) => ipcRenderer.invoke('inspect:mcp', clientId),
   reconnectMcp: (clientId, name) => ipcRenderer.invoke('mcp:reconnect', clientId, name),

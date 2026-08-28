@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ModelOption } from '../../../shared/types.js'
+import { gatewayModelName, isGatewayModel } from '../../../shared/gateway.js'
 import { desk } from '../lib/api.js'
 
 interface Props {
@@ -20,10 +21,18 @@ const FALLBACK: ModelOption[] = [
   { value: 'haiku', displayName: 'Haiku', description: 'Fastest' },
 ]
 
+/**
+ * The short label on the button. Anchored to the three Claude families on
+ * purpose: an unanchored `claude-([a-z]+)` renders `claude-deepseek-v4-flash` as
+ * "deepseek", and worse, collapses every gateway model whose name starts the
+ * same way onto one label, which then makes two rows tick as current.
+ */
 function short(model: string | null): string {
   if (!model) return 'model'
+  const gateway = gatewayModelName(model)
+  if (gateway) return gateway
   // claude-sonnet-5 -> sonnet, claude-opus-5[1m] -> opus
-  const m = model.match(/claude-([a-z]+)/)
+  const m = model.match(/^claude-(opus|sonnet|haiku)/)
   return m ? m[1] : model
 }
 
@@ -31,13 +40,15 @@ export function ModelPicker({ clientId, current, live, onChange }: Props): React
   const [open, setOpen] = useState(false)
   const [models, setModels] = useState<ModelOption[]>([])
   const [loading, setLoading] = useState(false)
+  const [gatewayReady, setGatewayReady] = useState(true)
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
     setLoading(true)
-    void desk.models(clientId).then((m) => {
+    void Promise.all([desk.models(clientId), desk.gatewayInstalled()]).then(([m, installed]) => {
       setModels(m.length ? m : FALLBACK)
+      setGatewayReady(installed)
       setLoading(false)
     })
   }, [open, live, clientId])
@@ -76,23 +87,36 @@ export function ModelPicker({ clientId, current, live, onChange }: Props): React
               No session yet, so these are aliases. The next session starts on your pick.
             </div>
           )}
-          {list.map((m) => {
+          {!loading && !gatewayReady && (
+            <div className="model-loading">
+              Datadog AI Gateway models need its proxy installed. Only Claude models are listed.
+            </div>
+          )}
+          {list.map((m, i) => {
             const isCurrent = current === m.value || short(current) === short(m.value)
+            // One header above the first gateway row. Both lists arrive already
+            // grouped, natives first, so a boundary test is enough.
+            const startsGateway = isGatewayModel(m.value) && !isGatewayModel(list[i - 1]?.value)
             return (
-              <button
-                key={m.value}
-                className={`model-item ${isCurrent ? 'is-on' : ''}`}
-                onClick={() => {
-                  onChange(m.value)
-                  setOpen(false)
-                }}
-              >
-                <span className="model-item-name">
-                  {m.displayName}
-                  {isCurrent && <span className="model-check">✓</span>}
-                </span>
-                <span className="model-item-desc">{m.description}</span>
-              </button>
+              // A Fragment, not a wrapper element: `position: sticky` on the
+              // group header is bounded by its parent, so inside a wrapper it
+              // would scroll away with its own row instead of holding.
+              <Fragment key={m.value}>
+                {startsGateway && <div className="model-group">Datadog AI Gateway</div>}
+                <button
+                  className={`model-item ${isCurrent ? 'is-on' : ''}`}
+                  onClick={() => {
+                    onChange(m.value)
+                    setOpen(false)
+                  }}
+                >
+                  <span className="model-item-name">
+                    {m.displayName}
+                    {isCurrent && <span className="model-check">✓</span>}
+                  </span>
+                  <span className="model-item-desc">{m.description}</span>
+                </button>
+              </Fragment>
             )
           })}
         </div>

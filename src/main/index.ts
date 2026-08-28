@@ -3,7 +3,8 @@ import { homedir } from 'node:os'
 import { join, dirname, resolve } from 'node:path'
 import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { AgentSession, resolveClaudeExecutable, type SessionOptions } from './agent.js'
+import { AgentSession, defaultModels, resolveClaudeExecutable, type SessionOptions } from './agent.js'
+import { gatewayInstalled } from './gateway.js'
 import { configSummary, readMcpFromDisk, readPlugins, readSkillsFromDisk } from './inspect.js'
 import { clearWarmInspect, warmInspect, type WarmInspect } from './warm.js'
 import { cancelMcpLogin, mcpLoginInProgress, sendMcpLoginInput, startMcpLogin } from './mcpAuth.js'
@@ -261,7 +262,14 @@ function registerIpc(): void {
 
   ipcMain.handle('session:turns', (_e, clientId: string) => sessionFor(clientId)?.getTurns() ?? [])
 
-  ipcMain.handle('session:models', async (_e, clientId: string) => (await sessionFor(clientId)?.models()) ?? [])
+  // A conversation with no session yet still gets a list, so a gateway model can
+  // be picked before the first message.
+  ipcMain.handle('session:models', async (_e, clientId: string) => {
+    const session = sessionFor(clientId)
+    return session ? session.models() : defaultModels()
+  })
+
+  ipcMain.handle('gateway:installed', () => gatewayInstalled())
 
   ipcMain.handle('session:setModel', async (_e, clientId: string, model: string) => {
     void writePrefs({ lastModel: model })

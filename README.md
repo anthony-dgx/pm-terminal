@@ -79,6 +79,12 @@ mid-turn dies with it. It asks first, and tells you how many sessions would be s
 session, or give a group a default. Two ship with the app: **Staff AAA PM** and **Cowboy**. Write
 your own in the Profiles tab.
 
+**Run a session on a non-Anthropic model.** If Datadog's AI Gateway client proxy is installed, its
+models are listed in the model picker under their own heading, with context size and input price.
+Pick one and the session runs on it. Nothing to configure here: the list is read from the proxy's
+own config, so a model added or removed there just appears or goes. Without the proxy the picker
+says so and offers Claude models only.
+
 **Themes.** Default, [Catppuccin](https://catppuccin.com/), Cowboy and Dracula. Catppuccin and
 Cowboy each have four variants.
 
@@ -134,6 +140,10 @@ A few things worth knowing:
   the new flow, so abandoning the browser step leaves it signed out. The app warns you first.
 - **Sessions running in a terminal** appear here as of their last save, not live.
 - **Deleting a built-in profile does not stick.** Edit it instead.
+- **A running session cannot switch to or from a gateway model.** Which model answers behind the
+  gateway is fixed when the session's process starts, so the pick is saved for your next session
+  instead and the app says so. That includes swapping one gateway model for another. Switching
+  between Claude models still takes effect immediately, as before.
 
 ---
 
