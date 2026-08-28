@@ -221,7 +221,7 @@ export function ProfilePicker({
         <span className="model-caret">▾</span>
       </button>
       {open && (
-        <div className="model-menu" onMouseLeave={() => setOpen(false)}>
+        <div className="model-menu model-menu-scroll" onMouseLeave={() => setOpen(false)}>
           <button
             className={`model-item ${!current ? 'is-on' : ''}`}
             onClick={() => {

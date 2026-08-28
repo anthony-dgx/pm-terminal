@@ -80,7 +80,7 @@ export function ModelPicker({ clientId, current, live, onChange }: Props): React
       </button>
 
       {open && (
-        <div className="model-menu">
+        <div className="model-menu model-menu-scroll">
           {loading && <div className="model-loading">Loading models...</div>}
           {!loading && !live && (
             <div className="model-loading">
