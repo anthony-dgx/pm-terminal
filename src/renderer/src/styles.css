@@ -1163,10 +1163,11 @@ kbd {
 :root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .btn-deny {
   border-color: var(--err); color: var(--err);
 }
-/* Light backgrounds, each with its own darker ink: on either one the unread
-   amber lands well under 4.5:1 using --warn straight, and the badge all but
-   disappears. Darker ink and a stronger fill put it back over 4.5:1. The pip
-   follows currentColor, so it is covered by the same rule. */
+/* Latte, among the catppuccin flavors: it is the one light background there, so
+   the unread amber lands at about 1.5:1 and the badge disappears. Darker ink and
+   a stronger fill put it back over 4.5:1. The pip follows currentColor, so it is
+   covered by the same rule. The generated light themes further down carry the
+   same fix, emitted per theme. */
 :root[data-theme='catppuccin-latte'] .hist-new,
 :root[data-theme='catppuccin-latte'] .status-unread,
 :root[data-theme='catppuccin-latte'] .switch-badge.is-unread {
@@ -1178,16 +1179,8 @@ kbd {
 :root[data-theme='catppuccin-latte'] .switch-badge.is-unread {
   background: color-mix(in srgb, var(--warn) 40%, transparent);
 }
-:root[data-theme='high-noon'] .hist-new,
-:root[data-theme='high-noon'] .status-unread,
-:root[data-theme='high-noon'] .switch-badge.is-unread {
-  color: #8c5a14;
 }
-:root[data-theme='high-noon'] .status-unread {
-  background: color-mix(in srgb, var(--warn) 34%, var(--bg-3));
 }
-:root[data-theme='high-noon'] .switch-badge.is-unread {
-  background: color-mix(in srgb, var(--warn) 40%, transparent);
 }
 
 /* ---- dracula ------------------------------------------------------------ */
@@ -1274,92 +1267,578 @@ kbd {
 :root[data-theme='zed-mono-slab'] .grp-cyan   { --grp: #7dbab0; }
 :root[data-theme='zed-mono-slab'] .grp-grey   { --grp: #807763; }
 
-/* ---- midnight spur ------------------------------------------------------ */
-/* A 16-color terminal palette: dark umber base, dusty terracotta, sage and
-   clay accents. Bright variants carry the UI accents since the base 8 are
-   tuned for terminal foreground text on a much darker background than most
-   of them clear on their own; --line sits at the base black's own bright
-   step rather than a bg tint, matching how the source palette uses it. */
+/* ---- generated terminal-palette themes ---------------------------------- */
+/* Twenty themes: five families x {original, cowboy} x {dark, light}, mapped
+   from a 16-colour terminal pack. Generated, so twenty sets of derivations
+   cannot drift apart by hand:
+     --bg/--text/--bg-3   background / foreground / selection, verbatim.
+     --bg-1/--bg-2        interpolated bg -> selection, so a light theme steps
+                          darker and a dark theme steps lighter, with no branch.
+     --line               past the selection, toward the text.
+     accents              the *normal* ansi slot, for hue fidelity. The bright
+                          slot is base09 - orange - in Base16 and Solarized, so
+                          preferring it for brightness hands --err an orange. A
+                          slot that is grey rather than a hue (Solarized's
+                          bright set is its base tones) loses to its partner.
+   Each accent is then walked away from --bg, hue intact, until it clears
+   4.5:1. These packs reuse one ansi set for both appearances, so the light
+   halves inherit accents chosen for a dark canvas: nord-light's yellow arrives
+   at 1.35:1, invisible rather than merely low. --text is left exactly as the
+   pack defines it, Solarized's deliberately low contrast included. */
 
-:root[data-theme='midnight-spur'] {
-  --bg: #241b17;        /* black         */
-  --bg-1: #2b211c;
-  --bg-2: #332822;
-  --bg-3: #46372e;
-  --line: #715e50;      /* bright black  */
-  --text: #d8c9af;      /* white         */
-  --text-dim: #bbab93;
-  --text-faint: #9c8b76;
-  --accent: #8fb7ce;    /* bright blue   */
-  --ok: #9bb47a;        /* bright green  */
-  --warn: #e6b85c;      /* bright yellow */
-  --err: #d9785f;       /* bright red    */
+/* Base16 Default Dark - dark, faithful */
+:root[data-theme='base16-default-dark'] {
+  --bg: #181818; --bg-1: #232323; --bg-2: #2d2d2d; --bg-3: #383838; --line: #5b5b5b;
+  --text: #d8d8d8; --text-dim: #848484; --text-faint: #656565;
+  --accent: #7CAFC2; --ok: #A1B56C; --warn: #F7CA88; --err: #bc6b68;
 }
-/* Surfaces that were hardcoded dark before themes existed. */
-:root[data-theme='midnight-spur'] .code-block,
-:root[data-theme='midnight-spur'] .tool-pre,
-:root[data-theme='midnight-spur'] .perm-subject { background: var(--bg); }
-:root[data-theme='midnight-spur'] .banner-error,
-:root[data-theme='midnight-spur'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
-:root[data-theme='midnight-spur'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
-:root[data-theme='midnight-spur'] .btn-primary,
-:root[data-theme='midnight-spur'] .btn-allow,
-:root[data-theme='midnight-spur'] .msg-avatar { color: var(--bg); }
-:root[data-theme='midnight-spur'] .btn-deny { border-color: var(--err); color: var(--err); }
-/* Group colours, matched to the palette's bright step for the same reason
-   the UI accents above use it. No distinct purple, so magenta covers both
-   the pink and purple slots. */
-:root[data-theme='midnight-spur'] .grp-blue   { --grp: #8fb7ce; }
-:root[data-theme='midnight-spur'] .grp-red    { --grp: #d9785f; }
-:root[data-theme='midnight-spur'] .grp-yellow { --grp: #e6b85c; }
-:root[data-theme='midnight-spur'] .grp-green  { --grp: #9bb47a; }
-:root[data-theme='midnight-spur'] .grp-pink   { --grp: #c58ba0; }
-:root[data-theme='midnight-spur'] .grp-purple { --grp: #c58ba0; }
-:root[data-theme='midnight-spur'] .grp-cyan   { --grp: #81b8ad; }
-:root[data-theme='midnight-spur'] .grp-grey   { --grp: #715e50; }
+:root[data-theme='base16-default-dark'] .code-block,
+:root[data-theme='base16-default-dark'] .tool-pre,
+:root[data-theme='base16-default-dark'] .perm-subject { background: var(--bg); }
+:root[data-theme='base16-default-dark'] .banner-error,
+:root[data-theme='base16-default-dark'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='base16-default-dark'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='base16-default-dark'] .btn-primary,
+:root[data-theme='base16-default-dark'] .btn-allow,
+:root[data-theme='base16-default-dark'] .msg-avatar { color: var(--bg); }
+:root[data-theme='base16-default-dark'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='base16-default-dark'] .grp-blue   { --grp: #7CAFC2; }
+:root[data-theme='base16-default-dark'] .grp-red    { --grp: #bc6b68; }
+:root[data-theme='base16-default-dark'] .grp-yellow { --grp: #F7CA88; }
+:root[data-theme='base16-default-dark'] .grp-green  { --grp: #A1B56C; }
+:root[data-theme='base16-default-dark'] .grp-pink   { --grp: #BA8BAF; }
+:root[data-theme='base16-default-dark'] .grp-purple { --grp: #BA8BAF; }
+:root[data-theme='base16-default-dark'] .grp-cyan   { --grp: #86C1B9; }
+:root[data-theme='base16-default-dark'] .grp-grey   { --grp: #656565; }
 
-/* ---- high noon ----------------------------------------------------------- */
-/* Same 16-color terminal shape as midnight spur, but the light half: white
-   and bright white are the two lightest anchors (bg scale + line), black and
-   bright black are the two darkest (text). Regular, not bright, accents carry
-   the UI here - on a light canvas the darker step is what clears contrast,
-   same reasoning catppuccin-latte uses against its own dark flavors. */
-
-:root[data-theme='high-noon'] {
-  --bg: #fff8e9;        /* bright white  */
-  --bg-1: #f7eeda;
-  --bg-2: #efe3c8;
-  --bg-3: #e4d3ae;
-  --line: #d9c4a5;      /* white         */
-  --text: #463129;      /* black         */
-  --text-dim: #5c4636;
-  --text-faint: #735c4d; /* bright black */
-  --accent: #3e718e;    /* blue          */
-  --ok: #4f6e3a;        /* green         */
-  --warn: #a56c18;      /* yellow        */
-  --err: #a33f2e;       /* red           */
+/* Base16 Default Light - light, faithful */
+:root[data-theme='base16-default-light'] {
+  --bg: #f8f8f8; --bg-1: #ededed; --bg-2: #e3e3e3; --bg-3: #d8d8d8; --line: #b5b5b5;
+  --text: #383838; --text-dim: #727272; --text-faint: #909090;
+  --accent: #547784; --ok: #6a7747; --warn: #856d49; --err: #AB4642;
 }
-:root[data-theme='high-noon'] .code-block,
-:root[data-theme='high-noon'] .tool-pre,
-:root[data-theme='high-noon'] .perm-subject { background: var(--bg); }
-:root[data-theme='high-noon'] .banner-error,
-:root[data-theme='high-noon'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
-:root[data-theme='high-noon'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
-:root[data-theme='high-noon'] .btn-primary,
-:root[data-theme='high-noon'] .btn-allow,
-:root[data-theme='high-noon'] .msg-avatar { color: var(--bg); }
-:root[data-theme='high-noon'] .btn-deny { border-color: var(--err); color: var(--err); }
-/* Group colours, matched to the palette's regular step for the same reason
-   the UI accents above use it. No distinct purple, so magenta covers both
-   the pink and purple slots. */
-:root[data-theme='high-noon'] .grp-blue   { --grp: #3e718e; }
-:root[data-theme='high-noon'] .grp-red    { --grp: #a33f2e; }
-:root[data-theme='high-noon'] .grp-yellow { --grp: #a56c18; }
-:root[data-theme='high-noon'] .grp-green  { --grp: #4f6e3a; }
-:root[data-theme='high-noon'] .grp-pink   { --grp: #8c4f68; }
-:root[data-theme='high-noon'] .grp-purple { --grp: #8c4f68; }
-:root[data-theme='high-noon'] .grp-cyan   { --grp: #3e756e; }
-:root[data-theme='high-noon'] .grp-grey   { --grp: #735c4d; }
+:root[data-theme='base16-default-light'] .code-block,
+:root[data-theme='base16-default-light'] .tool-pre,
+:root[data-theme='base16-default-light'] .perm-subject { background: var(--bg); }
+:root[data-theme='base16-default-light'] .banner-error,
+:root[data-theme='base16-default-light'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='base16-default-light'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='base16-default-light'] .btn-primary,
+:root[data-theme='base16-default-light'] .btn-allow,
+:root[data-theme='base16-default-light'] .msg-avatar { color: var(--bg); }
+:root[data-theme='base16-default-light'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='base16-default-light'] .grp-blue   { --grp: #547784; }
+:root[data-theme='base16-default-light'] .grp-red    { --grp: #AB4642; }
+:root[data-theme='base16-default-light'] .grp-yellow { --grp: #856d49; }
+:root[data-theme='base16-default-light'] .grp-green  { --grp: #6a7747; }
+:root[data-theme='base16-default-light'] .grp-pink   { --grp: #8a6782; }
+:root[data-theme='base16-default-light'] .grp-purple { --grp: #8a6782; }
+:root[data-theme='base16-default-light'] .grp-cyan   { --grp: #537873; }
+:root[data-theme='base16-default-light'] .grp-grey   { --grp: #909090; }
+
+/* Base16 Frontier Dark - dark, cowboy */
+:root[data-theme='base16-frontier-dark'] {
+  --bg: #15110f; --bg-1: #261f1a; --bg-2: #382c25; --bg-3: #493a30; --line: #6c5e51;
+  --text: #e8dcc4; --text-dim: #877f71; --text-faint: #696257;
+  --accent: #6E91A8; --ok: #789262; --warn: #C58A32; --err: #bc6450;
+}
+:root[data-theme='base16-frontier-dark'] .code-block,
+:root[data-theme='base16-frontier-dark'] .tool-pre,
+:root[data-theme='base16-frontier-dark'] .perm-subject { background: var(--bg); }
+:root[data-theme='base16-frontier-dark'] .banner-error,
+:root[data-theme='base16-frontier-dark'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='base16-frontier-dark'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='base16-frontier-dark'] .btn-primary,
+:root[data-theme='base16-frontier-dark'] .btn-allow,
+:root[data-theme='base16-frontier-dark'] .msg-avatar { color: var(--bg); }
+:root[data-theme='base16-frontier-dark'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='base16-frontier-dark'] .grp-blue   { --grp: #6E91A8; }
+:root[data-theme='base16-frontier-dark'] .grp-red    { --grp: #bc6450; }
+:root[data-theme='base16-frontier-dark'] .grp-yellow { --grp: #C58A32; }
+:root[data-theme='base16-frontier-dark'] .grp-green  { --grp: #789262; }
+:root[data-theme='base16-frontier-dark'] .grp-pink   { --grp: #a66d7d; }
+:root[data-theme='base16-frontier-dark'] .grp-purple { --grp: #a66d7d; }
+:root[data-theme='base16-frontier-dark'] .grp-cyan   { --grp: #5F9A91; }
+:root[data-theme='base16-frontier-dark'] .grp-grey   { --grp: #696257; }
+
+/* Base16 Frontier Light - light, cowboy */
+:root[data-theme='base16-frontier-light'] {
+  --bg: #f4e7ce; --bg-1: #ebdbbf; --bg-2: #e1ceb1; --bg-3: #d8c2a2; --line: #b5a086;
+  --text: #3a2921; --text-dim: #766658; --text-faint: #908071;
+  --accent: #3c6c88; --ok: #4F6E3A; --warn: #8e5d15; --err: #A33F2E;
+}
+:root[data-theme='base16-frontier-light'] .code-block,
+:root[data-theme='base16-frontier-light'] .tool-pre,
+:root[data-theme='base16-frontier-light'] .perm-subject { background: var(--bg); }
+:root[data-theme='base16-frontier-light'] .banner-error,
+:root[data-theme='base16-frontier-light'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='base16-frontier-light'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='base16-frontier-light'] .btn-primary,
+:root[data-theme='base16-frontier-light'] .btn-allow,
+:root[data-theme='base16-frontier-light'] .msg-avatar { color: var(--bg); }
+:root[data-theme='base16-frontier-light'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='base16-frontier-light'] .grp-blue   { --grp: #3c6c88; }
+:root[data-theme='base16-frontier-light'] .grp-red    { --grp: #A33F2E; }
+:root[data-theme='base16-frontier-light'] .grp-yellow { --grp: #8e5d15; }
+:root[data-theme='base16-frontier-light'] .grp-green  { --grp: #4F6E3A; }
+:root[data-theme='base16-frontier-light'] .grp-pink   { --grp: #8C4F68; }
+:root[data-theme='base16-frontier-light'] .grp-purple { --grp: #8C4F68; }
+:root[data-theme='base16-frontier-light'] .grp-cyan   { --grp: #3c706a; }
+:root[data-theme='base16-frontier-light'] .grp-grey   { --grp: #908071; }
+
+/* Solarized Dark - dark, faithful */
+:root[data-theme='solarized-dark'] {
+  --bg: #002b36; --bg-1: #022f3a; --bg-2: #05323e; --bg-3: #073642; --line: #224b54;
+  --text: #839496; --text-dim: #809294; --text-faint: #5c7479;
+  --accent: #3794d6; --ok: #859900; --warn: #B58900; --err: #e56765;
+}
+:root[data-theme='solarized-dark'] .code-block,
+:root[data-theme='solarized-dark'] .tool-pre,
+:root[data-theme='solarized-dark'] .perm-subject { background: var(--bg); }
+:root[data-theme='solarized-dark'] .banner-error,
+:root[data-theme='solarized-dark'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='solarized-dark'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='solarized-dark'] .btn-primary,
+:root[data-theme='solarized-dark'] .btn-allow,
+:root[data-theme='solarized-dark'] .msg-avatar { color: var(--bg); }
+:root[data-theme='solarized-dark'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='solarized-dark'] .grp-blue   { --grp: #3794d6; }
+:root[data-theme='solarized-dark'] .grp-red    { --grp: #e56765; }
+:root[data-theme='solarized-dark'] .grp-yellow { --grp: #B58900; }
+:root[data-theme='solarized-dark'] .grp-green  { --grp: #859900; }
+:root[data-theme='solarized-dark'] .grp-pink   { --grp: #dd629e; }
+:root[data-theme='solarized-dark'] .grp-purple { --grp: #dd629e; }
+:root[data-theme='solarized-dark'] .grp-cyan   { --grp: #2AA198; }
+:root[data-theme='solarized-dark'] .grp-grey   { --grp: #5c7479; }
+
+/* Solarized Light - light, faithful */
+:root[data-theme='solarized-light'] {
+  --bg: #fdf6e3; --bg-1: #f8f1de; --bg-2: #f3edda; --bg-3: #eee8d5; --line: #d0d0c3;
+  --text: #657b83; --text-dim: #657b83; --text-faint: #809194;
+  --accent: #2075b0; --ok: #687700; --warn: #8d6b00; --err: #d3302d;
+}
+:root[data-theme='solarized-light'] .code-block,
+:root[data-theme='solarized-light'] .tool-pre,
+:root[data-theme='solarized-light'] .perm-subject { background: var(--bg); }
+:root[data-theme='solarized-light'] .banner-error,
+:root[data-theme='solarized-light'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='solarized-light'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='solarized-light'] .btn-primary,
+:root[data-theme='solarized-light'] .btn-allow,
+:root[data-theme='solarized-light'] .msg-avatar { color: var(--bg); }
+:root[data-theme='solarized-light'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='solarized-light'] .grp-blue   { --grp: #2075b0; }
+:root[data-theme='solarized-light'] .grp-red    { --grp: #d3302d; }
+:root[data-theme='solarized-light'] .grp-yellow { --grp: #8d6b00; }
+:root[data-theme='solarized-light'] .grp-green  { --grp: #687700; }
+:root[data-theme='solarized-light'] .grp-pink   { --grp: #c6337a; }
+:root[data-theme='solarized-light'] .grp-purple { --grp: #c6337a; }
+:root[data-theme='solarized-light'] .grp-cyan   { --grp: #217e77; }
+:root[data-theme='solarized-light'] .grp-grey   { --grp: #809194; }
+
+/* Solarized Desert Dark - dark, cowboy */
+:root[data-theme='solarized-desert-dark'] {
+  --bg: #14282a; --bg-1: #1a2e2f; --bg-2: #203534; --bg-3: #263b39; --line: #44524b;
+  --text: #afa58d; --text-dim: #908c79; --text-faint: #6e7063;
+  --accent: #5b93ad; --ok: #809347; --warn: #B9892D; --err: #d36e62;
+}
+:root[data-theme='solarized-desert-dark'] .code-block,
+:root[data-theme='solarized-desert-dark'] .tool-pre,
+:root[data-theme='solarized-desert-dark'] .perm-subject { background: var(--bg); }
+:root[data-theme='solarized-desert-dark'] .banner-error,
+:root[data-theme='solarized-desert-dark'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='solarized-desert-dark'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='solarized-desert-dark'] .btn-primary,
+:root[data-theme='solarized-desert-dark'] .btn-allow,
+:root[data-theme='solarized-desert-dark'] .msg-avatar { color: var(--bg); }
+:root[data-theme='solarized-desert-dark'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='solarized-desert-dark'] .grp-blue   { --grp: #5b93ad; }
+:root[data-theme='solarized-desert-dark'] .grp-red    { --grp: #d36e62; }
+:root[data-theme='solarized-desert-dark'] .grp-yellow { --grp: #B9892D; }
+:root[data-theme='solarized-desert-dark'] .grp-green  { --grp: #809347; }
+:root[data-theme='solarized-desert-dark'] .grp-pink   { --grp: #b67d8e; }
+:root[data-theme='solarized-desert-dark'] .grp-purple { --grp: #b67d8e; }
+:root[data-theme='solarized-desert-dark'] .grp-cyan   { --grp: #54978d; }
+:root[data-theme='solarized-desert-dark'] .grp-grey   { --grp: #6e7063; }
+
+/* Solarized Desert Light - light, cowboy */
+:root[data-theme='solarized-desert-light'] {
+  --bg: #f3e8cd; --bg-1: #ede0c3; --bg-2: #e6d8b9; --bg-3: #e0d0af; --line: #c5b799;
+  --text: #665d4b; --text-dim: #716855; --text-faint: #8d846f;
+  --accent: #347089; --ok: #5b702d; --warn: #866117; --err: #b44234;
+}
+:root[data-theme='solarized-desert-light'] .code-block,
+:root[data-theme='solarized-desert-light'] .tool-pre,
+:root[data-theme='solarized-desert-light'] .perm-subject { background: var(--bg); }
+:root[data-theme='solarized-desert-light'] .banner-error,
+:root[data-theme='solarized-desert-light'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='solarized-desert-light'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='solarized-desert-light'] .btn-primary,
+:root[data-theme='solarized-desert-light'] .btn-allow,
+:root[data-theme='solarized-desert-light'] .msg-avatar { color: var(--bg); }
+:root[data-theme='solarized-desert-light'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='solarized-desert-light'] .grp-blue   { --grp: #347089; }
+:root[data-theme='solarized-desert-light'] .grp-red    { --grp: #b44234; }
+:root[data-theme='solarized-desert-light'] .grp-yellow { --grp: #866117; }
+:root[data-theme='solarized-desert-light'] .grp-green  { --grp: #5b702d; }
+:root[data-theme='solarized-desert-light'] .grp-pink   { --grp: #8C4B66; }
+:root[data-theme='solarized-desert-light'] .grp-purple { --grp: #8C4B66; }
+:root[data-theme='solarized-desert-light'] .grp-cyan   { --grp: #317369; }
+:root[data-theme='solarized-desert-light'] .grp-grey   { --grp: #8d846f; }
+
+/* Gruvbox Dark - dark, faithful */
+:root[data-theme='gruvbox-dark'] {
+  --bg: #282828; --bg-1: #353332; --bg-2: #433e3b; --bg-3: #504945; --line: #72695d;
+  --text: #ebdbb2; --text-dim: #999078; --text-faint: #7a7362;
+  --accent: #63999b; --ok: #98971A; --warn: #D79921; --err: #dd6e6a;
+}
+:root[data-theme='gruvbox-dark'] .code-block,
+:root[data-theme='gruvbox-dark'] .tool-pre,
+:root[data-theme='gruvbox-dark'] .perm-subject { background: var(--bg); }
+:root[data-theme='gruvbox-dark'] .banner-error,
+:root[data-theme='gruvbox-dark'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='gruvbox-dark'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='gruvbox-dark'] .btn-primary,
+:root[data-theme='gruvbox-dark'] .btn-allow,
+:root[data-theme='gruvbox-dark'] .msg-avatar { color: var(--bg); }
+:root[data-theme='gruvbox-dark'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='gruvbox-dark'] .grp-blue   { --grp: #63999b; }
+:root[data-theme='gruvbox-dark'] .grp-red    { --grp: #dd6e6a; }
+:root[data-theme='gruvbox-dark'] .grp-yellow { --grp: #D79921; }
+:root[data-theme='gruvbox-dark'] .grp-green  { --grp: #98971A; }
+:root[data-theme='gruvbox-dark'] .grp-pink   { --grp: #bd7b99; }
+:root[data-theme='gruvbox-dark'] .grp-purple { --grp: #bd7b99; }
+:root[data-theme='gruvbox-dark'] .grp-cyan   { --grp: #689D6A; }
+:root[data-theme='gruvbox-dark'] .grp-grey   { --grp: #7a7362; }
+
+/* Gruvbox Light - light, faithful */
+:root[data-theme='gruvbox-light'] {
+  --bg: #fbf1c7; --bg-1: #eee2ba; --bg-2: #e2d3ae; --bg-3: #d5c4a1; --line: #b3a589;
+  --text: #3c3836; --text-dim: #716c5f; --text-faint: #908976;
+  --accent: #3d7578; --ok: #707013; --warn: #8e6516; --err: #CC241D;
+}
+:root[data-theme='gruvbox-light'] .code-block,
+:root[data-theme='gruvbox-light'] .tool-pre,
+:root[data-theme='gruvbox-light'] .perm-subject { background: var(--bg); }
+:root[data-theme='gruvbox-light'] .banner-error,
+:root[data-theme='gruvbox-light'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='gruvbox-light'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='gruvbox-light'] .btn-primary,
+:root[data-theme='gruvbox-light'] .btn-allow,
+:root[data-theme='gruvbox-light'] .msg-avatar { color: var(--bg); }
+:root[data-theme='gruvbox-light'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='gruvbox-light'] .grp-blue   { --grp: #3d7578; }
+:root[data-theme='gruvbox-light'] .grp-red    { --grp: #CC241D; }
+:root[data-theme='gruvbox-light'] .grp-yellow { --grp: #8e6516; }
+:root[data-theme='gruvbox-light'] .grp-green  { --grp: #707013; }
+:root[data-theme='gruvbox-light'] .grp-pink   { --grp: #9c5676; }
+:root[data-theme='gruvbox-light'] .grp-purple { --grp: #9c5676; }
+:root[data-theme='gruvbox-light'] .grp-cyan   { --grp: #4f7751; }
+:root[data-theme='gruvbox-light'] .grp-grey   { --grp: #908976; }
+
+/* Gruvbox Cattle Drive Dark - dark, cowboy */
+:root[data-theme='gruvbox-cattle-drive-dark'] {
+  --bg: #211813; --bg-1: #2f221b; --bg-2: #3c2c23; --bg-3: #4a362b; --line: #6d5948;
+  --text: #e7d3ad; --text-dim: #908169; --text-faint: #746754;
+  --accent: #628992; --ok: #7C8C3F; --warn: #C48B2E; --err: #c36853;
+}
+:root[data-theme='gruvbox-cattle-drive-dark'] .code-block,
+:root[data-theme='gruvbox-cattle-drive-dark'] .tool-pre,
+:root[data-theme='gruvbox-cattle-drive-dark'] .perm-subject { background: var(--bg); }
+:root[data-theme='gruvbox-cattle-drive-dark'] .banner-error,
+:root[data-theme='gruvbox-cattle-drive-dark'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='gruvbox-cattle-drive-dark'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='gruvbox-cattle-drive-dark'] .btn-primary,
+:root[data-theme='gruvbox-cattle-drive-dark'] .btn-allow,
+:root[data-theme='gruvbox-cattle-drive-dark'] .msg-avatar { color: var(--bg); }
+:root[data-theme='gruvbox-cattle-drive-dark'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='gruvbox-cattle-drive-dark'] .grp-blue   { --grp: #628992; }
+:root[data-theme='gruvbox-cattle-drive-dark'] .grp-red    { --grp: #c36853; }
+:root[data-theme='gruvbox-cattle-drive-dark'] .grp-yellow { --grp: #C48B2E; }
+:root[data-theme='gruvbox-cattle-drive-dark'] .grp-green  { --grp: #7C8C3F; }
+:root[data-theme='gruvbox-cattle-drive-dark'] .grp-pink   { --grp: #a87486; }
+:root[data-theme='gruvbox-cattle-drive-dark'] .grp-purple { --grp: #a87486; }
+:root[data-theme='gruvbox-cattle-drive-dark'] .grp-cyan   { --grp: #608d6b; }
+:root[data-theme='gruvbox-cattle-drive-dark'] .grp-grey   { --grp: #746754; }
+
+/* Gruvbox Cattle Drive Light - light, cowboy */
+:root[data-theme='gruvbox-cattle-drive-light'] {
+  --bg: #f6e6c5; --bg-1: #eddab7; --bg-2: #e5cfa8; --bg-3: #dcc39a; --line: #baa381;
+  --text: #403029; --text-dim: #736355; --text-faint: #90806e;
+  --accent: #3d6e78; --ok: #5e6f2b; --warn: #8c5e14; --err: #A63E29;
+}
+:root[data-theme='gruvbox-cattle-drive-light'] .code-block,
+:root[data-theme='gruvbox-cattle-drive-light'] .tool-pre,
+:root[data-theme='gruvbox-cattle-drive-light'] .perm-subject { background: var(--bg); }
+:root[data-theme='gruvbox-cattle-drive-light'] .banner-error,
+:root[data-theme='gruvbox-cattle-drive-light'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='gruvbox-cattle-drive-light'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='gruvbox-cattle-drive-light'] .btn-primary,
+:root[data-theme='gruvbox-cattle-drive-light'] .btn-allow,
+:root[data-theme='gruvbox-cattle-drive-light'] .msg-avatar { color: var(--bg); }
+:root[data-theme='gruvbox-cattle-drive-light'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='gruvbox-cattle-drive-light'] .grp-blue   { --grp: #3d6e78; }
+:root[data-theme='gruvbox-cattle-drive-light'] .grp-red    { --grp: #A63E29; }
+:root[data-theme='gruvbox-cattle-drive-light'] .grp-yellow { --grp: #8c5e14; }
+:root[data-theme='gruvbox-cattle-drive-light'] .grp-green  { --grp: #5e6f2b; }
+:root[data-theme='gruvbox-cattle-drive-light'] .grp-pink   { --grp: #80475E; }
+:root[data-theme='gruvbox-cattle-drive-light'] .grp-purple { --grp: #80475E; }
+:root[data-theme='gruvbox-cattle-drive-light'] .grp-cyan   { --grp: #446f54; }
+:root[data-theme='gruvbox-cattle-drive-light'] .grp-grey   { --grp: #90806e; }
+
+/* Nord Dark - dark, faithful */
+:root[data-theme='nord-dark'] {
+  --bg: #2e3440; --bg-1: #353c4a; --bg-2: #3c4454; --bg-3: #434c5e; --line: #646c7d;
+  --text: #d8dee9; --text-dim: #979da9; --text-faint: #797f8a;
+  --accent: #81A1C1; --ok: #A3BE8C; --warn: #EBCB8B; --err: #d08a91;
+}
+:root[data-theme='nord-dark'] .code-block,
+:root[data-theme='nord-dark'] .tool-pre,
+:root[data-theme='nord-dark'] .perm-subject { background: var(--bg); }
+:root[data-theme='nord-dark'] .banner-error,
+:root[data-theme='nord-dark'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='nord-dark'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='nord-dark'] .btn-primary,
+:root[data-theme='nord-dark'] .btn-allow,
+:root[data-theme='nord-dark'] .msg-avatar { color: var(--bg); }
+:root[data-theme='nord-dark'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='nord-dark'] .grp-blue   { --grp: #81A1C1; }
+:root[data-theme='nord-dark'] .grp-red    { --grp: #d08a91; }
+:root[data-theme='nord-dark'] .grp-yellow { --grp: #EBCB8B; }
+:root[data-theme='nord-dark'] .grp-green  { --grp: #A3BE8C; }
+:root[data-theme='nord-dark'] .grp-pink   { --grp: #b690af; }
+:root[data-theme='nord-dark'] .grp-purple { --grp: #b690af; }
+:root[data-theme='nord-dark'] .grp-cyan   { --grp: #88C0D0; }
+:root[data-theme='nord-dark'] .grp-grey   { --grp: #797f8a; }
+
+/* Nord Light - light, faithful */
+:root[data-theme='nord-light'] {
+  --bg: #eceff4; --bg-1: #e5e9f0; --bg-2: #dfe4ed; --bg-3: #d8dee9; --line: #b3b9c4;
+  --text: #2e3440; --text-dim: #676c76; --text-faint: #858a93;
+  --accent: #4f6c90; --ok: #5f6e51; --warn: #925e4e; --err: #a4535b;
+}
+:root[data-theme='nord-light'] .code-block,
+:root[data-theme='nord-light'] .tool-pre,
+:root[data-theme='nord-light'] .perm-subject { background: var(--bg); }
+:root[data-theme='nord-light'] .banner-error,
+:root[data-theme='nord-light'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='nord-light'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='nord-light'] .btn-primary,
+:root[data-theme='nord-light'] .btn-allow,
+:root[data-theme='nord-light'] .msg-avatar { color: var(--bg); }
+:root[data-theme='nord-light'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='nord-light'] .grp-blue   { --grp: #4f6c90; }
+:root[data-theme='nord-light'] .grp-red    { --grp: #a4535b; }
+:root[data-theme='nord-light'] .grp-yellow { --grp: #925e4e; }
+:root[data-theme='nord-light'] .grp-green  { --grp: #5f6e51; }
+:root[data-theme='nord-light'] .grp-pink   { --grp: #7e6379; }
+:root[data-theme='nord-light'] .grp-purple { --grp: #7e6379; }
+:root[data-theme='nord-light'] .grp-cyan   { --grp: #567170; }
+:root[data-theme='nord-light'] .grp-grey   { --grp: #858a93; }
+
+/* Nord Prairie Night - dark, cowboy */
+:root[data-theme='nord-prairie-night'] {
+  --bg: #20262a; --bg-1: #293134; --bg-2: #313b3f; --bg-3: #3a4649; --line: #5d6665;
+  --text: #d9d7c7; --text-dim: #8b8d85; --text-faint: #6e706c;
+  --accent: #7491a5; --ok: #8AA272; --warn: #C8A65C; --err: #c37973;
+}
+:root[data-theme='nord-prairie-night'] .code-block,
+:root[data-theme='nord-prairie-night'] .tool-pre,
+:root[data-theme='nord-prairie-night'] .perm-subject { background: var(--bg); }
+:root[data-theme='nord-prairie-night'] .banner-error,
+:root[data-theme='nord-prairie-night'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='nord-prairie-night'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='nord-prairie-night'] .btn-primary,
+:root[data-theme='nord-prairie-night'] .btn-allow,
+:root[data-theme='nord-prairie-night'] .msg-avatar { color: var(--bg); }
+:root[data-theme='nord-prairie-night'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='nord-prairie-night'] .grp-blue   { --grp: #7491a5; }
+:root[data-theme='nord-prairie-night'] .grp-red    { --grp: #c37973; }
+:root[data-theme='nord-prairie-night'] .grp-yellow { --grp: #C8A65C; }
+:root[data-theme='nord-prairie-night'] .grp-green  { --grp: #8AA272; }
+:root[data-theme='nord-prairie-night'] .grp-pink   { --grp: #a18498; }
+:root[data-theme='nord-prairie-night'] .grp-purple { --grp: #a18498; }
+:root[data-theme='nord-prairie-night'] .grp-cyan   { --grp: #6F9E9B; }
+:root[data-theme='nord-prairie-night'] .grp-grey   { --grp: #6e706c; }
+
+/* Nord Prairie Day - light, cowboy */
+:root[data-theme='nord-prairie-day'] {
+  --bg: #ede8d9; --bg-1: #e4e2d4; --bg-2: #dcdbd0; --bg-3: #d3d5cb; --line: #b0b3ac;
+  --text: #343c3e; --text-dim: #646966; --text-faint: #82847f;
+  --accent: #4d6c81; --ok: #596c47; --warn: #816427; --err: #A34E48;
+}
+:root[data-theme='nord-prairie-day'] .code-block,
+:root[data-theme='nord-prairie-day'] .tool-pre,
+:root[data-theme='nord-prairie-day'] .perm-subject { background: var(--bg); }
+:root[data-theme='nord-prairie-day'] .banner-error,
+:root[data-theme='nord-prairie-day'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='nord-prairie-day'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='nord-prairie-day'] .btn-primary,
+:root[data-theme='nord-prairie-day'] .btn-allow,
+:root[data-theme='nord-prairie-day'] .msg-avatar { color: var(--bg); }
+:root[data-theme='nord-prairie-day'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='nord-prairie-day'] .grp-blue   { --grp: #4d6c81; }
+:root[data-theme='nord-prairie-day'] .grp-red    { --grp: #A34E48; }
+:root[data-theme='nord-prairie-day'] .grp-yellow { --grp: #816427; }
+:root[data-theme='nord-prairie-day'] .grp-green  { --grp: #596c47; }
+:root[data-theme='nord-prairie-day'] .grp-pink   { --grp: #7c5e73; }
+:root[data-theme='nord-prairie-day'] .grp-purple { --grp: #7c5e73; }
+:root[data-theme='nord-prairie-day'] .grp-cyan   { --grp: #486d6a; }
+:root[data-theme='nord-prairie-day'] .grp-grey   { --grp: #82847f; }
+
+/* Tokyo Night - dark, faithful */
+:root[data-theme='tokyo-night'] {
+  --bg: #1a1b26; --bg-1: #222943; --bg-2: #2b385f; --bg-3: #33467c; --line: #526397;
+  --text: #c0caf5; --text-dim: #7e84a2; --text-faint: #636881;
+  --accent: #7AA2F7; --ok: #9ECE6A; --warn: #E0AF68; --err: #F7768E;
+}
+:root[data-theme='tokyo-night'] .code-block,
+:root[data-theme='tokyo-night'] .tool-pre,
+:root[data-theme='tokyo-night'] .perm-subject { background: var(--bg); }
+:root[data-theme='tokyo-night'] .banner-error,
+:root[data-theme='tokyo-night'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='tokyo-night'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='tokyo-night'] .btn-primary,
+:root[data-theme='tokyo-night'] .btn-allow,
+:root[data-theme='tokyo-night'] .msg-avatar { color: var(--bg); }
+:root[data-theme='tokyo-night'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='tokyo-night'] .grp-blue   { --grp: #7AA2F7; }
+:root[data-theme='tokyo-night'] .grp-red    { --grp: #F7768E; }
+:root[data-theme='tokyo-night'] .grp-yellow { --grp: #E0AF68; }
+:root[data-theme='tokyo-night'] .grp-green  { --grp: #9ECE6A; }
+:root[data-theme='tokyo-night'] .grp-pink   { --grp: #BB9AF7; }
+:root[data-theme='tokyo-night'] .grp-purple { --grp: #BB9AF7; }
+:root[data-theme='tokyo-night'] .grp-cyan   { --grp: #7DCFFF; }
+:root[data-theme='tokyo-night'] .grp-grey   { --grp: #636881; }
+
+/* Tokyo Night Day - light, faithful */
+:root[data-theme='tokyo-night-day'] {
+  --bg: #e1e2e7; --bg-1: #d3d6e5; --bg-2: #c4cbe4; --bg-3: #b6bfe2; --line: #9aaada;
+  --text: #3760bf; --text-dim: #3760bf; --text-faint: #607fc9;
+  --accent: #2462b6; --ok: #516c34; --warn: #7b5f37; --err: #bf214f;
+}
+:root[data-theme='tokyo-night-day'] .code-block,
+:root[data-theme='tokyo-night-day'] .tool-pre,
+:root[data-theme='tokyo-night-day'] .perm-subject { background: var(--bg); }
+:root[data-theme='tokyo-night-day'] .banner-error,
+:root[data-theme='tokyo-night-day'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='tokyo-night-day'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='tokyo-night-day'] .btn-primary,
+:root[data-theme='tokyo-night-day'] .btn-allow,
+:root[data-theme='tokyo-night-day'] .msg-avatar { color: var(--bg); }
+:root[data-theme='tokyo-night-day'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='tokyo-night-day'] .grp-blue   { --grp: #2462b6; }
+:root[data-theme='tokyo-night-day'] .grp-red    { --grp: #bf214f; }
+:root[data-theme='tokyo-night-day'] .grp-yellow { --grp: #7b5f37; }
+:root[data-theme='tokyo-night-day'] .grp-green  { --grp: #516c34; }
+:root[data-theme='tokyo-night-day'] .grp-pink   { --grp: #7d45c6; }
+:root[data-theme='tokyo-night-day'] .grp-purple { --grp: #7d45c6; }
+:root[data-theme='tokyo-night-day'] .grp-cyan   { --grp: #006c91; }
+:root[data-theme='tokyo-night-day'] .grp-grey   { --grp: #607fc9; }
+
+/* Tokyo Night Neon Saloon - dark, cowboy */
+:root[data-theme='tokyo-night-neon-saloon'] {
+  --bg: #171722; --bg-1: #212130; --bg-2: #2b2c3f; --bg-3: #35364d; --line: #5a5966;
+  --text: #ddd5c0; --text-dim: #86817a; --text-faint: #6a6764;
+  --accent: #728FC5; --ok: #8DA966; --warn: #D3A34E; --err: #D45F68;
+}
+:root[data-theme='tokyo-night-neon-saloon'] .code-block,
+:root[data-theme='tokyo-night-neon-saloon'] .tool-pre,
+:root[data-theme='tokyo-night-neon-saloon'] .perm-subject { background: var(--bg); }
+:root[data-theme='tokyo-night-neon-saloon'] .banner-error,
+:root[data-theme='tokyo-night-neon-saloon'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='tokyo-night-neon-saloon'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='tokyo-night-neon-saloon'] .btn-primary,
+:root[data-theme='tokyo-night-neon-saloon'] .btn-allow,
+:root[data-theme='tokyo-night-neon-saloon'] .msg-avatar { color: var(--bg); }
+:root[data-theme='tokyo-night-neon-saloon'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='tokyo-night-neon-saloon'] .grp-blue   { --grp: #728FC5; }
+:root[data-theme='tokyo-night-neon-saloon'] .grp-red    { --grp: #D45F68; }
+:root[data-theme='tokyo-night-neon-saloon'] .grp-yellow { --grp: #D3A34E; }
+:root[data-theme='tokyo-night-neon-saloon'] .grp-green  { --grp: #8DA966; }
+:root[data-theme='tokyo-night-neon-saloon'] .grp-pink   { --grp: #A27FB6; }
+:root[data-theme='tokyo-night-neon-saloon'] .grp-purple { --grp: #A27FB6; }
+:root[data-theme='tokyo-night-neon-saloon'] .grp-cyan   { --grp: #69A5AE; }
+:root[data-theme='tokyo-night-neon-saloon'] .grp-grey   { --grp: #6a6764; }
+
+/* Tokyo Day Desert Neon - light, cowboy */
+:root[data-theme='tokyo-day-desert-neon'] {
+  --bg: #eee6d7; --bg-1: #e5e0da; --bg-2: #dbdbdd; --bg-3: #d2d5e0; --line: #b0b5c3;
+  --text: #38445e; --text-dim: #606879; --text-faint: #7d828c;
+  --accent: #44679c; --ok: #596f33; --warn: #83601f; --err: #b0414b;
+}
+:root[data-theme='tokyo-day-desert-neon'] .code-block,
+:root[data-theme='tokyo-day-desert-neon'] .tool-pre,
+:root[data-theme='tokyo-day-desert-neon'] .perm-subject { background: var(--bg); }
+:root[data-theme='tokyo-day-desert-neon'] .banner-error,
+:root[data-theme='tokyo-day-desert-neon'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='tokyo-day-desert-neon'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='tokyo-day-desert-neon'] .btn-primary,
+:root[data-theme='tokyo-day-desert-neon'] .btn-allow,
+:root[data-theme='tokyo-day-desert-neon'] .msg-avatar { color: var(--bg); }
+:root[data-theme='tokyo-day-desert-neon'] .btn-deny { border-color: var(--err); color: var(--err); }
+:root[data-theme='tokyo-day-desert-neon'] .grp-blue   { --grp: #44679c; }
+:root[data-theme='tokyo-day-desert-neon'] .grp-red    { --grp: #b0414b; }
+:root[data-theme='tokyo-day-desert-neon'] .grp-yellow { --grp: #83601f; }
+:root[data-theme='tokyo-day-desert-neon'] .grp-green  { --grp: #596f33; }
+:root[data-theme='tokyo-day-desert-neon'] .grp-pink   { --grp: #81579A; }
+:root[data-theme='tokyo-day-desert-neon'] .grp-purple { --grp: #81579A; }
+:root[data-theme='tokyo-day-desert-neon'] .grp-cyan   { --grp: #3e6d76; }
+:root[data-theme='tokyo-day-desert-neon'] .grp-grey   { --grp: #7d828c; }
+
+/* Light themes: the amber unread badge all but vanishes on a light canvas - the
+   same problem latte has above. Ink is darkened per theme until it clears 4.5:1
+   against the fill the badge actually renders. */
+:root[data-theme='base16-default-light'] .hist-new,
+:root[data-theme='base16-default-light'] .status-unread,
+:root[data-theme='base16-default-light'] .switch-badge.is-unread { color: #52442d; }
+:root[data-theme='base16-default-light'] .status-unread { background: color-mix(in srgb, var(--warn) 34%, var(--bg-3)); }
+:root[data-theme='base16-default-light'] .switch-badge.is-unread { background: color-mix(in srgb, var(--warn) 40%, transparent); }
+:root[data-theme='base16-frontier-light'] .hist-new,
+:root[data-theme='base16-frontier-light'] .status-unread,
+:root[data-theme='base16-frontier-light'] .switch-badge.is-unread { color: #50340c; }
+:root[data-theme='base16-frontier-light'] .status-unread { background: color-mix(in srgb, var(--warn) 34%, var(--bg-3)); }
+:root[data-theme='base16-frontier-light'] .switch-badge.is-unread { background: color-mix(in srgb, var(--warn) 40%, transparent); }
+:root[data-theme='solarized-light'] .hist-new,
+:root[data-theme='solarized-light'] .status-unread,
+:root[data-theme='solarized-light'] .switch-badge.is-unread { color: #604900; }
+:root[data-theme='solarized-light'] .status-unread { background: color-mix(in srgb, var(--warn) 34%, var(--bg-3)); }
+:root[data-theme='solarized-light'] .switch-badge.is-unread { background: color-mix(in srgb, var(--warn) 40%, transparent); }
+:root[data-theme='solarized-desert-light'] .hist-new,
+:root[data-theme='solarized-desert-light'] .status-unread,
+:root[data-theme='solarized-desert-light'] .switch-badge.is-unread { color: #533c0e; }
+:root[data-theme='solarized-desert-light'] .status-unread { background: color-mix(in srgb, var(--warn) 34%, var(--bg-3)); }
+:root[data-theme='solarized-desert-light'] .switch-badge.is-unread { background: color-mix(in srgb, var(--warn) 40%, transparent); }
+:root[data-theme='gruvbox-light'] .hist-new,
+:root[data-theme='gruvbox-light'] .status-unread,
+:root[data-theme='gruvbox-light'] .switch-badge.is-unread { color: #50390c; }
+:root[data-theme='gruvbox-light'] .status-unread { background: color-mix(in srgb, var(--warn) 34%, var(--bg-3)); }
+:root[data-theme='gruvbox-light'] .switch-badge.is-unread { background: color-mix(in srgb, var(--warn) 40%, transparent); }
+:root[data-theme='gruvbox-cattle-drive-light'] .hist-new,
+:root[data-theme='gruvbox-cattle-drive-light'] .status-unread,
+:root[data-theme='gruvbox-cattle-drive-light'] .switch-badge.is-unread { color: #51370c; }
+:root[data-theme='gruvbox-cattle-drive-light'] .status-unread { background: color-mix(in srgb, var(--warn) 34%, var(--bg-3)); }
+:root[data-theme='gruvbox-cattle-drive-light'] .switch-badge.is-unread { background: color-mix(in srgb, var(--warn) 40%, transparent); }
+:root[data-theme='nord-light'] .hist-new,
+:root[data-theme='nord-light'] .status-unread,
+:root[data-theme='nord-light'] .switch-badge.is-unread { color: #603e33; }
+:root[data-theme='nord-light'] .status-unread { background: color-mix(in srgb, var(--warn) 34%, var(--bg-3)); }
+:root[data-theme='nord-light'] .switch-badge.is-unread { background: color-mix(in srgb, var(--warn) 40%, transparent); }
+:root[data-theme='nord-prairie-day'] .hist-new,
+:root[data-theme='nord-prairie-day'] .status-unread,
+:root[data-theme='nord-prairie-day'] .switch-badge.is-unread { color: #534019; }
+:root[data-theme='nord-prairie-day'] .status-unread { background: color-mix(in srgb, var(--warn) 34%, var(--bg-3)); }
+:root[data-theme='nord-prairie-day'] .switch-badge.is-unread { background: color-mix(in srgb, var(--warn) 40%, transparent); }
+:root[data-theme='tokyo-night-day'] .hist-new,
+:root[data-theme='tokyo-night-day'] .status-unread,
+:root[data-theme='tokyo-night-day'] .switch-badge.is-unread { color: #42331e; }
+:root[data-theme='tokyo-night-day'] .status-unread { background: color-mix(in srgb, var(--warn) 34%, var(--bg-3)); }
+:root[data-theme='tokyo-night-day'] .switch-badge.is-unread { background: color-mix(in srgb, var(--warn) 40%, transparent); }
+:root[data-theme='tokyo-day-desert-neon'] .hist-new,
+:root[data-theme='tokyo-day-desert-neon'] .status-unread,
+:root[data-theme='tokyo-day-desert-neon'] .switch-badge.is-unread { color: #543d14; }
+:root[data-theme='tokyo-day-desert-neon'] .status-unread { background: color-mix(in srgb, var(--warn) 34%, var(--bg-3)); }
+:root[data-theme='tokyo-day-desert-neon'] .switch-badge.is-unread { background: color-mix(in srgb, var(--warn) 40%, transparent); }
 
 .theme-dot { display: block; width: 11px; height: 11px; border-radius: 50%; }
 .theme-swatch { display: inline-flex; border-radius: 3px; overflow: hidden; }

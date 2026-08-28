@@ -39,8 +39,69 @@ export const THEMES: ThemeDef[] = [
   },
   { id: 'dracula', name: 'Dracula', note: 'Dark, with a lively purple accent', swatch: ['#282a36', '#bd93f9'] },
   { id: 'zed-mono-slab', name: 'Zed Mono Slab', note: 'Warm slab brown, cream, muted accents', swatch: ['#191411', '#82a8c4'] },
-  { id: 'midnight-spur', name: 'Midnight Spur', note: 'Dark umber, dusty terracotta and sage', swatch: ['#241b17', '#8fb7ce'] },
-  { id: 'high-noon', name: 'High Noon', note: 'Light, sunbaked clay and desert blue', swatch: ['#fff8e9', '#3e718e'] },
+  {
+    id: 'base16',
+    name: 'Base16',
+    note: 'Pick a flavor',
+    swatch: ['#181818', '#7CAFC2'],
+    flavors: [
+      { id: 'base16-default-dark', name: 'Dark', note: 'The original, dark', swatch: ['#181818', '#7CAFC2'] },
+      { id: 'base16-default-light', name: 'Light', note: 'The original, light', swatch: ['#f8f8f8', '#547784'] },
+      { id: 'base16-frontier-dark', name: 'Frontier Dark', note: 'Cowboy edition, dark', swatch: ['#15110f', '#6E91A8'] },
+      { id: 'base16-frontier-light', name: 'Frontier Light', note: 'Cowboy edition, light', swatch: ['#f4e7ce', '#3c6c88'] },
+    ],
+  },
+  {
+    id: 'solarized',
+    name: 'Solarized',
+    note: 'Pick a flavor',
+    swatch: ['#002b36', '#3794d6'],
+    flavors: [
+      { id: 'solarized-dark', name: 'Dark', note: 'The original, dark', swatch: ['#002b36', '#3794d6'] },
+      { id: 'solarized-light', name: 'Light', note: 'The original, light', swatch: ['#fdf6e3', '#2075b0'] },
+      { id: 'solarized-desert-dark', name: 'Desert Dark', note: 'Cowboy edition, dark', swatch: ['#14282a', '#5b93ad'] },
+      { id: 'solarized-desert-light', name: 'Desert Light', note: 'Cowboy edition, light', swatch: ['#f3e8cd', '#347089'] },
+    ],
+  },
+  {
+    id: 'gruvbox',
+    name: 'Gruvbox',
+    note: 'Pick a flavor',
+    swatch: ['#282828', '#63999b'],
+    flavors: [
+      { id: 'gruvbox-dark', name: 'Dark', note: 'The original, dark', swatch: ['#282828', '#63999b'] },
+      { id: 'gruvbox-light', name: 'Light', note: 'The original, light', swatch: ['#fbf1c7', '#3d7578'] },
+      { id: 'gruvbox-cattle-drive-dark', name: 'Cattle Drive Dark', note: 'Cowboy edition, dark', swatch: ['#211813', '#628992'] },
+      { id: 'gruvbox-cattle-drive-light', name: 'Cattle Drive Light', note: 'Cowboy edition, light', swatch: ['#f6e6c5', '#3d6e78'] },
+    ],
+  },
+  {
+    id: 'nord',
+    name: 'Nord',
+    note: 'Pick a flavor',
+    swatch: ['#2e3440', '#81A1C1'],
+    flavors: [
+      { id: 'nord-dark', name: 'Dark', note: 'The original, dark', swatch: ['#2e3440', '#81A1C1'] },
+      { id: 'nord-light', name: 'Light', note: 'The original, light', swatch: ['#eceff4', '#4f6c90'] },
+      { id: 'nord-prairie-night', name: 'Prairie Night', note: 'Cowboy edition, dark', swatch: ['#20262a', '#7491a5'] },
+      { id: 'nord-prairie-day', name: 'Prairie Day', note: 'Cowboy edition, light', swatch: ['#ede8d9', '#4d6c81'] },
+    ],
+  },
+  {
+    // 'tokyo', not 'tokyo-night': the faithful dark flavor owns that id, and
+    // findTheme matches group ids first, so sharing it would resolve the saved
+    // theme to this group - which is a submenu, not something selectable.
+    id: 'tokyo',
+    name: 'Tokyo Night',
+    note: 'Pick a flavor',
+    swatch: ['#1a1b26', '#7AA2F7'],
+    flavors: [
+      { id: 'tokyo-night', name: 'Night', note: 'The original, dark', swatch: ['#1a1b26', '#7AA2F7'] },
+      { id: 'tokyo-night-day', name: 'Day', note: 'The original, light', swatch: ['#e1e2e7', '#2462b6'] },
+      { id: 'tokyo-night-neon-saloon', name: 'Neon Saloon', note: 'Cowboy edition, dark', swatch: ['#171722', '#728FC5'] },
+      { id: 'tokyo-day-desert-neon', name: 'Desert Neon', note: 'Cowboy edition, light', swatch: ['#eee6d7', '#44679c'] },
+    ],
+  },
 ]
 
 function findTheme(id: string): ThemeDef | undefined {
