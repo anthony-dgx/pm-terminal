@@ -1163,10 +1163,10 @@ kbd {
 :root:is([data-theme='catppuccin-latte'], [data-theme='catppuccin-frappe'], [data-theme='catppuccin-macchiato']) .btn-deny {
   border-color: var(--err); color: var(--err);
 }
-/* Latte only, and latte alone among the ten: it is the one light background, so
-   the unread amber lands at about 1.5:1 there and the badge disappears. Darker
-   ink and a stronger fill put it back over 4.5:1. The pip follows currentColor,
-   so it is covered by the same rule. */
+/* Light backgrounds, each with its own darker ink: on either one the unread
+   amber lands well under 4.5:1 using --warn straight, and the badge all but
+   disappears. Darker ink and a stronger fill put it back over 4.5:1. The pip
+   follows currentColor, so it is covered by the same rule. */
 :root[data-theme='catppuccin-latte'] .hist-new,
 :root[data-theme='catppuccin-latte'] .status-unread,
 :root[data-theme='catppuccin-latte'] .switch-badge.is-unread {
@@ -1176,6 +1176,17 @@ kbd {
   background: color-mix(in srgb, var(--warn) 34%, var(--bg-3));
 }
 :root[data-theme='catppuccin-latte'] .switch-badge.is-unread {
+  background: color-mix(in srgb, var(--warn) 40%, transparent);
+}
+:root[data-theme='high-noon'] .hist-new,
+:root[data-theme='high-noon'] .status-unread,
+:root[data-theme='high-noon'] .switch-badge.is-unread {
+  color: #8c5a14;
+}
+:root[data-theme='high-noon'] .status-unread {
+  background: color-mix(in srgb, var(--warn) 34%, var(--bg-3));
+}
+:root[data-theme='high-noon'] .switch-badge.is-unread {
   background: color-mix(in srgb, var(--warn) 40%, transparent);
 }
 
@@ -1262,6 +1273,93 @@ kbd {
 :root[data-theme='zed-mono-slab'] .grp-purple { --grp: #c389a0; }
 :root[data-theme='zed-mono-slab'] .grp-cyan   { --grp: #7dbab0; }
 :root[data-theme='zed-mono-slab'] .grp-grey   { --grp: #807763; }
+
+/* ---- midnight spur ------------------------------------------------------ */
+/* A 16-color terminal palette: dark umber base, dusty terracotta, sage and
+   clay accents. Bright variants carry the UI accents since the base 8 are
+   tuned for terminal foreground text on a much darker background than most
+   of them clear on their own; --line sits at the base black's own bright
+   step rather than a bg tint, matching how the source palette uses it. */
+
+:root[data-theme='midnight-spur'] {
+  --bg: #241b17;        /* black         */
+  --bg-1: #2b211c;
+  --bg-2: #332822;
+  --bg-3: #46372e;
+  --line: #715e50;      /* bright black  */
+  --text: #d8c9af;      /* white         */
+  --text-dim: #bbab93;
+  --text-faint: #9c8b76;
+  --accent: #8fb7ce;    /* bright blue   */
+  --ok: #9bb47a;        /* bright green  */
+  --warn: #e6b85c;      /* bright yellow */
+  --err: #d9785f;       /* bright red    */
+}
+/* Surfaces that were hardcoded dark before themes existed. */
+:root[data-theme='midnight-spur'] .code-block,
+:root[data-theme='midnight-spur'] .tool-pre,
+:root[data-theme='midnight-spur'] .perm-subject { background: var(--bg); }
+:root[data-theme='midnight-spur'] .banner-error,
+:root[data-theme='midnight-spur'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='midnight-spur'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='midnight-spur'] .btn-primary,
+:root[data-theme='midnight-spur'] .btn-allow,
+:root[data-theme='midnight-spur'] .msg-avatar { color: var(--bg); }
+:root[data-theme='midnight-spur'] .btn-deny { border-color: var(--err); color: var(--err); }
+/* Group colours, matched to the palette's bright step for the same reason
+   the UI accents above use it. No distinct purple, so magenta covers both
+   the pink and purple slots. */
+:root[data-theme='midnight-spur'] .grp-blue   { --grp: #8fb7ce; }
+:root[data-theme='midnight-spur'] .grp-red    { --grp: #d9785f; }
+:root[data-theme='midnight-spur'] .grp-yellow { --grp: #e6b85c; }
+:root[data-theme='midnight-spur'] .grp-green  { --grp: #9bb47a; }
+:root[data-theme='midnight-spur'] .grp-pink   { --grp: #c58ba0; }
+:root[data-theme='midnight-spur'] .grp-purple { --grp: #c58ba0; }
+:root[data-theme='midnight-spur'] .grp-cyan   { --grp: #81b8ad; }
+:root[data-theme='midnight-spur'] .grp-grey   { --grp: #715e50; }
+
+/* ---- high noon ----------------------------------------------------------- */
+/* Same 16-color terminal shape as midnight spur, but the light half: white
+   and bright white are the two lightest anchors (bg scale + line), black and
+   bright black are the two darkest (text). Regular, not bright, accents carry
+   the UI here - on a light canvas the darker step is what clears contrast,
+   same reasoning catppuccin-latte uses against its own dark flavors. */
+
+:root[data-theme='high-noon'] {
+  --bg: #fff8e9;        /* bright white  */
+  --bg-1: #f7eeda;
+  --bg-2: #efe3c8;
+  --bg-3: #e4d3ae;
+  --line: #d9c4a5;      /* white         */
+  --text: #463129;      /* black         */
+  --text-dim: #5c4636;
+  --text-faint: #735c4d; /* bright black */
+  --accent: #3e718e;    /* blue          */
+  --ok: #4f6e3a;        /* green         */
+  --warn: #a56c18;      /* yellow        */
+  --err: #a33f2e;       /* red           */
+}
+:root[data-theme='high-noon'] .code-block,
+:root[data-theme='high-noon'] .tool-pre,
+:root[data-theme='high-noon'] .perm-subject { background: var(--bg); }
+:root[data-theme='high-noon'] .banner-error,
+:root[data-theme='high-noon'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='high-noon'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='high-noon'] .btn-primary,
+:root[data-theme='high-noon'] .btn-allow,
+:root[data-theme='high-noon'] .msg-avatar { color: var(--bg); }
+:root[data-theme='high-noon'] .btn-deny { border-color: var(--err); color: var(--err); }
+/* Group colours, matched to the palette's regular step for the same reason
+   the UI accents above use it. No distinct purple, so magenta covers both
+   the pink and purple slots. */
+:root[data-theme='high-noon'] .grp-blue   { --grp: #3e718e; }
+:root[data-theme='high-noon'] .grp-red    { --grp: #a33f2e; }
+:root[data-theme='high-noon'] .grp-yellow { --grp: #a56c18; }
+:root[data-theme='high-noon'] .grp-green  { --grp: #4f6e3a; }
+:root[data-theme='high-noon'] .grp-pink   { --grp: #8c4f68; }
+:root[data-theme='high-noon'] .grp-purple { --grp: #8c4f68; }
+:root[data-theme='high-noon'] .grp-cyan   { --grp: #3e756e; }
+:root[data-theme='high-noon'] .grp-grey   { --grp: #735c4d; }
 
 .theme-dot { display: block; width: 11px; height: 11px; border-radius: 50%; }
 .theme-swatch { display: inline-flex; border-radius: 3px; overflow: hidden; }
