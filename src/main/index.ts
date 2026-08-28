@@ -13,7 +13,7 @@ import { defaultCwd, readPlayer, readPrefs, writePlayer, writePrefs } from './pr
 import { serveRenderer } from './server.js'
 import { profilePrompt, readProfiles, writeProfiles } from './profiles.js'
 import { migrateUserData } from './migrate.js'
-import { applyUpdate, cachedStatus, checkForUpdate } from './update.js'
+import { applyUpdate, cachedStatus, checkForUpdate, CHECK_TICK_MS } from './update.js'
 import type {
   AgentProfile,
   Attachment,
@@ -449,12 +449,13 @@ void app.whenReady().then(async () => {
 
   createWindow()
 
-  // Drive the daily check from here, not from the panel. The row only mounts
-  // when the side panel is open, and then only once, so on its own it would
-  // mean "checked when you first opened the panel" rather than "once a day" -
-  // and never at all for someone who keeps the panel closed. The hourly tick
-  // is cheap: `checkForUpdate(false)` returns the cached answer without
-  // touching the network until the day is up.
+  // Drive the check from here, not from the panel. The row only mounts when the
+  // side panel is open, and then only once, so on its own it would mean
+  // "checked when you first opened the panel" rather than "on a schedule" - and
+  // never at all for someone who keeps the panel closed. The tick is cheap:
+  // `checkForUpdate(false)` returns the cached answer without touching the
+  // network until CHECK_INTERVAL_MS is up, so the interval below is a sampling
+  // rate, not a fetch rate. Both come from update.ts so they cannot drift.
   const tick = (): void => {
     void checkForUpdate(false)
       .then((status) => {
@@ -467,7 +468,7 @@ void app.whenReady().then(async () => {
       .catch(() => {})
   }
   tick()
-  setInterval(tick, 60 * 60 * 1000)
+  setInterval(tick, CHECK_TICK_MS)
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

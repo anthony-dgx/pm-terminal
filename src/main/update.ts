@@ -35,8 +35,27 @@ declare const __BUILD_REPO__: string
  */
 const BUNDLE = 'Atelier.app'
 
-/** Once a day. Checking on every launch is noise, and it costs a network round trip. */
-const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000
+/**
+ * How stale a cached answer may be before the next check goes to the network.
+ *
+ * Fifteen minutes, not a day: the point of the row is to notice that main moved,
+ * and a day-old answer means the app spends most of its life reporting "current"
+ * about a commit that stopped being current hours ago. The cost of being wrong
+ * is a stale build; the cost of checking is one `git fetch` of a single ref, so
+ * the trade is lopsided in favour of checking often.
+ */
+export const CHECK_INTERVAL_MS = 15 * 60 * 1000
+
+/**
+ * How often the main process wakes up to *consider* checking.
+ *
+ * A third of the throttle, deliberately. Ticking at exactly the throttle means a
+ * tick that lands a second early sees an unexpired cache, skips, and the real
+ * check waits for the tick after - so the effective interval silently doubles.
+ * Sampling faster than the throttle makes expiry get noticed promptly; the extra
+ * ticks are free, because an unexpired cache returns without any network.
+ */
+export const CHECK_TICK_MS = CHECK_INTERVAL_MS / 3
 
 /**
  * A GUI app has no terminal and may have no unlocked ssh-agent. Without this,
