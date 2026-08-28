@@ -938,23 +938,28 @@ kbd {
   --text: #ece6f0; --text-dim: #b8a9c4; --text-faint: #83718f;
   --accent: #d97a5a; --ok: #7a9e6e; --warn: #e0a852; --err: #b6456b;
 }
+:root[data-theme='cowboy-sheriffs-gold'] {
+  --bg: #1c1714; --bg-1: #26211c; --bg-2: #302a24; --bg-3: #413a30; --line: #554d40;
+  --text: #e8d8b0; --text-dim: #bbae8e; --text-faint: #8c816a;
+  --accent: #e0a84e; --ok: #7f9b69; --warn: #d6a84b; --err: #c65a46;
+}
 
 /* Surfaces that were hardcoded dark for sundown - derive from each flavor's
    own bg/err/warn instead, same approach used for the catppuccin flavors. */
-:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .code-block,
-:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .tool-pre,
-:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .perm-subject {
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk'], [data-theme='cowboy-sheriffs-gold']) .code-block,
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk'], [data-theme='cowboy-sheriffs-gold']) .tool-pre,
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk'], [data-theme='cowboy-sheriffs-gold']) .perm-subject {
   background: var(--bg);
 }
-:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .banner-error,
-:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .err-box {
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk'], [data-theme='cowboy-sheriffs-gold']) .banner-error,
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk'], [data-theme='cowboy-sheriffs-gold']) .err-box {
   background: color-mix(in srgb, var(--err) 22%, var(--bg)); color: var(--err);
 }
-:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .perm {
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk'], [data-theme='cowboy-sheriffs-gold']) .perm {
   background: color-mix(in srgb, var(--warn) 16%, var(--bg)); border-color: var(--warn);
 }
-:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .btn-primary,
-:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk']) .btn-allow {
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk'], [data-theme='cowboy-sheriffs-gold']) .btn-primary,
+:root:is([data-theme='cowboy-high-noon'], [data-theme='cowboy-saloon-night'], [data-theme='cowboy-prairie-dusk'], [data-theme='cowboy-sheriffs-gold']) .btn-allow {
   color: var(--bg);
 }
 

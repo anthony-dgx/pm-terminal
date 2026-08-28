@@ -34,6 +34,7 @@ export const THEMES: ThemeDef[] = [
       { id: 'cowboy-high-noon', name: 'High Noon', note: 'Desert daylight, turquoise and terracotta', swatch: ['#211a13', '#3fa9a0'] },
       { id: 'cowboy-saloon-night', name: 'Saloon Night', note: 'Dark wood, brass, and poker felt', swatch: ['#150f0c', '#b8863b'] },
       { id: 'cowboy-prairie-dusk', name: 'Prairie Dusk', note: 'Sunset over the plains, cooler twilight', swatch: ['#1a1620', '#d97a5a'] },
+      { id: 'cowboy-sheriffs-gold', name: "Sheriff's Gold", note: 'Charred leather and warm badge gold', swatch: ['#1c1714', '#e0a84e'] },
     ],
   },
   { id: 'dracula', name: 'Dracula', note: 'Dark, with a lively purple accent', swatch: ['#282a36', '#bd93f9'] },
