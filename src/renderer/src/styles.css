@@ -1209,6 +1209,49 @@ kbd {
 :root[data-theme='dracula'] .grp-cyan   { --grp: #8be9fd; }
 :root[data-theme='dracula'] .grp-grey   { --grp: #6272a4; }
 
+/* ---- zed mono slab ------------------------------------------------------ */
+/* Warm slab palette: a brown structural colour, a cream foreground, and six
+   muted accents. The palette ships no dark base, so the bg scale is the slab
+   brown (#59483c) stepped down toward black - which leaves the slab itself as
+   --line, exactly the role it reads as. Every accent clears 6:1 on --bg. */
+
+:root[data-theme='zed-mono-slab'] {
+  --bg: #191411;
+  --bg-1: #201a16;
+  --bg-2: #28201b;
+  --bg-3: #3b3028;
+  --line: #59483c;      /* slab          */
+  --text: #fff0c7;      /* cream         */
+  --text-dim: #baae90;
+  --text-faint: #807763;
+  --accent: #82a8c4;    /* blue          */
+  --ok: #9db77e;        /* green         */
+  --warn: #f0c568;      /* yellow        */
+  --err: #e4775f;       /* red           */
+}
+/* Surfaces that were hardcoded dark before themes existed. */
+:root[data-theme='zed-mono-slab'] .code-block,
+:root[data-theme='zed-mono-slab'] .tool-pre,
+:root[data-theme='zed-mono-slab'] .perm-subject { background: var(--bg); }
+:root[data-theme='zed-mono-slab'] .banner-error,
+:root[data-theme='zed-mono-slab'] .err-box { background: color-mix(in srgb, var(--err) 18%, var(--bg)); color: var(--err); }
+:root[data-theme='zed-mono-slab'] .perm { background: color-mix(in srgb, var(--warn) 14%, var(--bg)); border-color: var(--warn); }
+:root[data-theme='zed-mono-slab'] .btn-primary,
+:root[data-theme='zed-mono-slab'] .btn-allow,
+:root[data-theme='zed-mono-slab'] .msg-avatar { color: var(--bg); }
+:root[data-theme='zed-mono-slab'] .btn-deny { border-color: var(--err); color: var(--err); }
+/* Group colours: this is where the palette's magenta and cyan earn their keep,
+   since the variable set above has no slot for them. No distinct purple, so
+   magenta covers both the pink and purple slots. */
+:root[data-theme='zed-mono-slab'] .grp-blue   { --grp: #82a8c4; }
+:root[data-theme='zed-mono-slab'] .grp-red    { --grp: #e4775f; }
+:root[data-theme='zed-mono-slab'] .grp-yellow { --grp: #f0c568; }
+:root[data-theme='zed-mono-slab'] .grp-green  { --grp: #9db77e; }
+:root[data-theme='zed-mono-slab'] .grp-pink   { --grp: #c389a0; }
+:root[data-theme='zed-mono-slab'] .grp-purple { --grp: #c389a0; }
+:root[data-theme='zed-mono-slab'] .grp-cyan   { --grp: #7dbab0; }
+:root[data-theme='zed-mono-slab'] .grp-grey   { --grp: #807763; }
+
 .theme-dot { display: block; width: 11px; height: 11px; border-radius: 50%; }
 .theme-swatch { display: inline-flex; border-radius: 3px; overflow: hidden; }
 .theme-swatch i { display: block; width: 9px; height: 12px; }

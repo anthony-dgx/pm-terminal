@@ -38,6 +38,7 @@ export const THEMES: ThemeDef[] = [
     ],
   },
   { id: 'dracula', name: 'Dracula', note: 'Dark, with a lively purple accent', swatch: ['#282a36', '#bd93f9'] },
+  { id: 'zed-mono-slab', name: 'Zed Mono Slab', note: 'Warm slab brown, cream, muted accents', swatch: ['#191411', '#82a8c4'] },
 ]
 
 function findTheme(id: string): ThemeDef | undefined {
