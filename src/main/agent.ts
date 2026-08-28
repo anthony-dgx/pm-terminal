@@ -61,6 +61,25 @@ export function resolveClaudeExecutable(): string | undefined {
 }
 
 /**
+ * The login shell's PATH, so the spawned `claude` subprocess can find things
+ * like an `apiKeyHelper` script (e.g. a Homebrew-installed CLI). Without this
+ * it inherits launchd's stripped PATH, and helper commands that work fine in
+ * a terminal fail silently inside the packaged app.
+ */
+function resolveLoginPath(): string | undefined {
+  try {
+    const found = execFileSync('/bin/zsh', ['-lic', 'echo $PATH'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim()
+    return found || undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Async iterable the SDK pulls user messages from. Streaming-input mode is
  * required for `canUseTool` to work, so every session uses it even for the
  * first prompt.
@@ -202,6 +221,7 @@ export class AgentSession {
     }
 
     this.setStatus('starting')
+    const loginPath = resolveLoginPath()
     this.q = query({
       prompt: this.queue,
       options: {
@@ -210,6 +230,7 @@ export class AgentSession {
         resume: this.opts.resume,
         permissionMode: this.opts.permissionMode ?? 'default',
         pathToClaudeCodeExecutable: executable,
+        ...(loginPath ? { env: { ...process.env, PATH: loginPath } } : {}),
         // Append rather than replace: substituting the preset would drop Claude
         // Code's own tool and skill guidance.
         ...(this.opts.profilePrompt
