@@ -1,0 +1,14 @@
+/* ============================================================================
+   Datadog Design System — root stylesheet
+   Single entry point for consumers. Pulls in the token/type layer and the
+   slide system so a page can link one file instead of several.
+   ----------------------------------------------------------------------------
+   • colors_and_type.css — tokens, type families, @font-face, .dd-* classes
+   • slides/slides.css    — 1280×720 slide/deck system (backgrounds, frame, type)
+   Context-specific sheets are linked directly where used:
+   • preview/card.css              — internal Design-System card chrome
+   • ui_kits/marketing-site/kit.css — marketing-site prototype kit (opt-in)
+   ============================================================================ */
+
+@import url('colors_and_type.css');
+@import url('slides/slides.css');

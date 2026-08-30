@@ -1,0 +1,212 @@
+/* ============================================================================
+   Datadog Design System — Colors & Type
+   Source: Datadog Brand Guidelines v1.3 + Logos & Press Kit (datadoghq.com)
+   ----------------------------------------------------------------------------
+   Brand font is National 2 (licensed). Datadog's OWN documented fallback when
+   National 2 is unavailable is Roboto. We use Roboto here as the sanctioned
+   substitute, Roboto Mono for labels/code, Noto Sans for product UI.
+
+   Roboto Regular (400) is SELF-HOSTED from the user-uploaded fonts/Roboto-Regular.ttf.
+   The heavier weights (300/500/700/900) + italic + Roboto Mono + Noto Sans are
+   still delivered from Google Fonts (no local files were uploaded for those).
+   ============================================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,300;0,500;0,700;0,900;1,400&family=Roboto+Mono:wght@400;500;700&family=Noto+Sans:wght@400;500;600;700&display=swap');
+
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/Roboto-Regular.ttf') format('truetype');
+}
+
+:root {
+  /* ---------------------------------------------------------------------- */
+  /* PRIMARY PALETTE                                                        */
+  /* Logo purple is the classic guideline color; the 2025 presentation      */
+  /* system runs on a brighter VIOLET (#5C00EF / #9C43FE) for slide chrome.  */
+  /* (Verified from the official 2025 Datadog Presentation Template.)        */
+  /* ---------------------------------------------------------------------- */
+  --dd-purple:         #632CA6;  /* Logo purple · PMS Violet C · 99/44/166 (use for the logo) */
+  --dd-violet:         #5C00EF;  /* 2025 deck PRIMARY — dominant slide/UI purple */
+  --dd-violet-light:   #9C43FE;  /* 2025 deck SECONDARY violet */
+  --dd-purple-accent:  #8000FF;  /* Backgrounds & accents · PMS 266C */
+
+  /* Purple/violet ramp — retuned to the real 2025 deck palette */
+  --dd-purple-900: #1F0746;
+  --dd-purple-800: #2A0A5E;
+  --dd-purple-700: #40007F;
+  --dd-purple-600: #5C00EF;  /* = 2025 deck primary violet */
+  --dd-purple-500: #7A2BF5;
+  --dd-purple-400: #9C43FE;  /* = 2025 deck secondary violet */
+  --dd-purple-300: #A960FF;
+  --dd-purple-200: #CC99FE;
+  --dd-purple-100: #E6D5FF;
+  --dd-purple-050: #F4ECFF;
+
+  /* ---------------------------------------------------------------------- */
+  /* NEUTRALS — ink + grays. Datadog marketing pairs purple with near-black */
+  /* ink and clean grays; product UI is cooler.                             */
+  /* ---------------------------------------------------------------------- */
+  --dd-ink:        #1C1126;  /* near-black with a faint purple cast */
+  --dd-ink-soft:   #2A1B3D;
+  --dd-gray-900:   #21222C;
+  --dd-gray-800:   #3A3A47;
+  --dd-gray-700:   #51515E;
+  --dd-gray-600:   #6A6A78;
+  --dd-gray-500:   #8C8C99;
+  --dd-gray-400:   #B0B0BC;
+  --dd-gray-300:   #D2D2DC;
+  --dd-gray-200:   #E6E6EC;
+  --dd-gray-100:   #F2F2F6;
+  --dd-gray-050:   #F8F8FB;
+  --dd-white:      #FFFFFF;
+
+  /* ---------------------------------------------------------------------- */
+  /* EXTENDED ACCENTS — the real 2025 deck accent set (verified from theme  */
+  /* + slide usage). Used for data-viz, illustration, and categorization.   */
+  /* ---------------------------------------------------------------------- */
+  --dd-green:   #00B765;  /* theme accent green (vivid #00E37D) */
+  --dd-blue:    #0060FF;
+  --dd-cyan:    #00CAFF;  /* slide cyan #60D3F5 */
+  --dd-orange:  #FF5E00;
+  --dd-amber:   #FF9B00;
+  --dd-pink:    #FF0080;  /* hot pink (soft #FF7AB3) */
+  --dd-mint:    #57E8B3;
+  --dd-magenta: #D32D96;
+
+  /* Semantic status */
+  --dd-success: #00B765;
+  --dd-warning: #FF9B00;
+  --dd-error:   #FF0050;
+  --dd-info:    #0060FF;
+
+  /* ---------------------------------------------------------------------- */
+  /* GRADIENTS — brand ads use purple gradients; the canonical one runs     */
+  /* from logo purple into the brighter accent purple.                      */
+  /* ---------------------------------------------------------------------- */
+  --dd-gradient-brand:   linear-gradient(120deg, #5C00EF 0%, #9C43FE 100%); /* @kind color */
+  --dd-gradient-deep:    linear-gradient(135deg, #2A0A5E 0%, #5C00EF 62%, #9C43FE 100%); /* @kind color */
+  --dd-gradient-magenta: linear-gradient(120deg, #5C00EF 0%, #9C43FE 50%, #FF0080 100%); /* @kind color */
+  --dd-gradient-cyan:    linear-gradient(120deg, #5C00EF 0%, #0060FF 55%, #00CAFF 100%); /* @kind color */
+  --dd-gradient-ink:     linear-gradient(135deg, #140A24 0%, #40007F 100%); /* @kind color */
+
+  /* ---------------------------------------------------------------------- */
+  /* SEMANTIC SURFACE / TEXT TOKENS                                         */
+  /* ---------------------------------------------------------------------- */
+  --bg:            var(--dd-white);
+  --bg-subtle:     var(--dd-gray-050);
+  --bg-inverse:    var(--dd-ink);
+  --surface:       var(--dd-white);
+  --surface-alt:   var(--dd-gray-100);
+
+  --fg1:           var(--dd-ink);        /* primary text */
+  --fg2:           var(--dd-gray-700);   /* secondary text */
+  --fg3:           var(--dd-gray-500);   /* tertiary / captions */
+  --fg-on-purple:  var(--dd-white);
+  --fg-inverse:    var(--dd-white);
+
+  --border:        var(--dd-gray-200);
+  --border-strong: var(--dd-gray-300);
+  --accent:        var(--dd-violet);
+  --accent-bright: var(--dd-violet-light);
+
+  /* ---------------------------------------------------------------------- */
+  /* TYPE FAMILIES                                                          */
+  /* ---------------------------------------------------------------------- */
+  --font-display: 'Roboto', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-body:    'Roboto', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-ui:      'Noto Sans', 'Roboto', system-ui, sans-serif;   /* product UI */
+  --font-mono:    'Roboto Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* Weights (National 2 / Roboto map: Light 300, Regular 400, Medium 500, Bold 700, Black 900) */
+  --w-light: 300; /* @kind font */
+  --w-reg:   400; /* @kind font */
+  --w-med:   500; /* @kind font */
+  --w-bold:  700; /* @kind font */
+  --w-black: 900; /* @kind font */
+
+  /* ---------------------------------------------------------------------- */
+  /* TYPE SCALE (marketing / deck context, px)                              */
+  /* Leading & tracking follow the guidelines:                              */
+  /*   Heading >=24px : leading 1.0,  tracking -0.01em                      */
+  /*   Subheading     : leading 1.1,  tracking -0.005em                     */
+  /*   Lead / Body    : leading 1.25                                        */
+  /*   Eyebrow (mono) : uppercase, tracking +0.12em                         */
+  /*   Informational  : mono, leading 1.5                                   */
+  /* ---------------------------------------------------------------------- */
+  --fs-display: 88px;
+  --fs-h1:      64px;
+  --fs-h2:      48px;
+  --fs-h3:      34px;
+  --fs-h4:      26px;
+  --fs-lead:    22px;
+  --fs-body:    17px;
+  --fs-small:   15px;
+  --fs-eyebrow: 13px;
+  --fs-caption: 12px;
+
+  /* ---------------------------------------------------------------------- */
+  /* RADII / SHADOWS / SPACING                                              */
+  /* Datadog marketing leans clean & rectilinear; product UI uses small     */
+  /* radii. Cards are subtle, low-elevation.                                */
+  /* ---------------------------------------------------------------------- */
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+
+  --shadow-sm: 0 1px 2px rgba(28,17,38,.06), 0 1px 3px rgba(28,17,38,.08);
+  --shadow-md: 0 4px 12px rgba(28,17,38,.08), 0 2px 4px rgba(28,17,38,.06);
+  --shadow-lg: 0 12px 32px rgba(28,17,38,.12), 0 4px 8px rgba(28,17,38,.06);
+  --shadow-purple: 0 12px 32px rgba(99,44,166,.28);
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  --ease-standard: cubic-bezier(.4, 0, .2, 1); /* @kind other */
+  --ease-out:      cubic-bezier(.16, 1, .3, 1); /* @kind other */
+  --dur-fast: 120ms; /* @kind other */
+  --dur-med:  220ms; /* @kind other */
+  --dur-slow: 360ms; /* @kind other */
+}
+
+/* ==========================================================================
+   SEMANTIC TYPE CLASSES — apply directly or copy the rules.
+   ========================================================================== */
+.dd-eyebrow {
+  font-family: var(--font-mono);
+  font-weight: var(--w-bold);
+  font-size: var(--fs-eyebrow);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.dd-display {
+  font-family: var(--font-display);
+  font-weight: var(--w-black);
+  font-size: var(--fs-display);
+  line-height: 1.0;
+  letter-spacing: -0.02em;
+  color: var(--fg1);
+  text-wrap: balance;
+}
+.dd-h1 { font-family: var(--font-display); font-weight: var(--w-bold); font-size: var(--fs-h1); line-height: 1.0;  letter-spacing: -0.015em; color: var(--fg1); text-wrap: balance; }
+.dd-h2 { font-family: var(--font-display); font-weight: var(--w-bold); font-size: var(--fs-h2); line-height: 1.04; letter-spacing: -0.01em;  color: var(--fg1); text-wrap: balance; }
+.dd-h3 { font-family: var(--font-display); font-weight: var(--w-bold); font-size: var(--fs-h3); line-height: 1.1;  letter-spacing: -0.01em;  color: var(--fg1); }
+.dd-h4 { font-family: var(--font-display); font-weight: var(--w-bold); font-size: var(--fs-h4); line-height: 1.15; letter-spacing: -0.005em; color: var(--fg1); }
+.dd-lead { font-family: var(--font-body); font-weight: var(--w-reg); font-size: var(--fs-lead); line-height: 1.25; color: var(--fg2); }
+.dd-body { font-family: var(--font-body); font-weight: var(--w-reg); font-size: var(--fs-body); line-height: 1.5; color: var(--fg2); }
+.dd-small { font-family: var(--font-body); font-weight: var(--w-reg); font-size: var(--fs-small); line-height: 1.45; color: var(--fg2); }
+.dd-info { font-family: var(--font-mono); font-weight: var(--w-reg); font-size: var(--fs-small); line-height: 1.5; color: var(--fg2); }
+.dd-caption { font-family: var(--font-mono); font-weight: var(--w-reg); font-size: var(--fs-caption); line-height: 1.5; letter-spacing: .02em; color: var(--fg3); }
