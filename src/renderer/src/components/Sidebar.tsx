@@ -7,24 +7,33 @@ import {
   type SessionGroup,
 } from '../../../shared/types.js'
 import { desk } from '../lib/api.js'
-
-
-function relativeTime(ms: number): string {
-  const diff = Date.now() - ms
-  const mins = Math.round(diff / 60000)
-  if (mins < 1) return 'now'
-  if (mins < 60) return `${mins}m`
-  const hours = Math.round(mins / 60)
-  if (hours < 24) return `${hours}h`
-  return `${Math.round(hours / 24)}d`
-}
-
-function shortCwd(cwd: string, home: string): string {
-  return cwd.startsWith(home) ? `~${cwd.slice(home.length)}` : cwd
-}
+import {
+  STATE_ORDER,
+  elapsedLabel,
+  fmtTokens,
+  searchText,
+  shortenPath,
+  type SessionVitals,
+} from '../lib/sessionState.js'
 
 const DRAG_TYPE = 'application/x-claude-session'
 const GROUP_DRAG_TYPE = 'application/x-claude-group'
+
+/**
+ * Below this, a query is not worth reading 120 transcripts for: two characters
+ * match almost everything, so the scan would cost a lot to narrow nothing.
+ */
+const DEEP_MIN = 3
+
+/** Transcripts read at once during a deep scan. */
+const DEEP_CHUNK = 6
+
+/**
+ * Per-session cap on cached transcript text. Smaller than the live
+ * conversations' cap because the scan holds one of these for every recorded
+ * session at once.
+ */
+const DEEP_CAP = 80_000
 
 type Bucket = 'today' | 'week' | 'before'
 
@@ -42,10 +51,100 @@ function bucketOf(modifiedMs: number, now: number): Bucket {
 }
 
 const BUCKET_LABELS: { key: Bucket; label: string }[] = [
-  { key: 'today', label: 'Today' },
+  // Everything in the history buckets has already finished, so today's bucket
+  // reads as the third status section rather than as a plain date range.
+  { key: 'today', label: 'Done today' },
   { key: 'week', label: 'This week' },
   { key: 'before', label: 'Before' },
 ]
+
+/** Attention first, then the freshest work. Same order every list uses. */
+function byStateThenRecency(a: SessionVitals, b: SessionVitals): number {
+  return STATE_ORDER[a.state] - STATE_ORDER[b.state] || b.startedAt - a.startedAt
+}
+
+/** A group header: eyebrow, neutral count, and a rule that eats the rest. */
+function SectionHead({ label, count }: { label: string; count: number }): React.ReactElement {
+  return (
+    <div className="sx-sec">
+      <span className="eyebrow">{label}</span>
+      <span className="sx-sec-n">{count}</span>
+      <div className="rule" />
+    </div>
+  )
+}
+
+interface VitalsRowProps {
+  vitals: SessionVitals
+  home: string
+  selected: boolean
+  onSelect: (id: string) => void
+  onDragStart: (sessionId: string) => void
+  onDragEnd: () => void
+}
+
+/**
+ * A row for a conversation that is open right now. It answers the only two
+ * questions worth asking of a live agent — what is it doing, and does it want
+ * me — before it says anything about where or when.
+ */
+function VitalsRow({
+  vitals,
+  home,
+  selected,
+  onSelect,
+  onDragStart,
+  onDragEnd,
+}: VitalsRowProps): React.ReactElement {
+  const needsHuman = vitals.state === 'needs_you' || vitals.state === 'blocked'
+  // A live session is pulled out of the time buckets and rendered here instead,
+  // so without this it could not be filed into a group at all — and a running
+  // session is the one you most want to organise. Only possible once the CLI
+  // has reported an id, which is what groups key on.
+  const canDrag = Boolean(vitals.sessionId)
+  return (
+    <div
+      className={`sx-row ${selected ? 'is-selected' : ''}`}
+      onClick={() => onSelect(vitals.id)}
+      title={`${vitals.title}\n${shortenPath(vitals.cwd, home)}`}
+      draggable={canDrag}
+      onDragStart={(e) => {
+        if (!vitals.sessionId) return
+        e.dataTransfer.setData(DRAG_TYPE, vitals.sessionId)
+        e.dataTransfer.effectAllowed = 'move'
+        onDragStart(vitals.sessionId)
+      }}
+      onDragEnd={onDragEnd}
+    >
+      <div className="sx-row-top">
+        <span className={`dot ${needsHuman ? 'dot-attn' : 'dot-running'}`} />
+        <span className="sx-title">{vitals.title}</span>
+        <span className="sx-elapsed">{vitals.elapsed}</span>
+      </div>
+
+      {vitals.lastLine ? (
+        <div className={`sx-live ${vitals.lastLineKind === 'attn' ? 'is-attn' : ''}`}>
+          {vitals.lastLine}
+        </div>
+      ) : null}
+
+      {needsHuman ? (
+        <div className="sx-meta">
+          <span className="sx-path">{shortenPath(vitals.cwd, home)}</span>
+          {vitals.tokens > 0 ? <span className="sx-tok">{fmtTokens(vitals.tokens)}</span> : null}
+        </div>
+      ) : // Only ever a real step count: a bar with nothing behind it is a lie,
+      // and the redesign removed the indeterminate crawl on purpose.
+      vitals.progress ? (
+        <div className="track">
+          <span
+            style={{ width: `${Math.round((vitals.progress.done / vitals.progress.total) * 100)}%` }}
+          />
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 interface SessionRowProps {
   entry: HistoryEntry
@@ -63,6 +162,8 @@ interface SessionRowProps {
   onRename: (e: HistoryEntry, title: string) => void
   onDragStart: (sessionId: string) => void
   onDragEnd: () => void
+  /** Single-line form for the finished sessions in the time buckets. */
+  dense?: boolean
 }
 
 function SessionRow({
@@ -79,6 +180,7 @@ function SessionRow({
   onRename,
   onDragStart,
   onDragEnd,
+  dense,
 }: SessionRowProps): React.ReactElement {
   const [editing, setEditing] = useState(false)
   const [menu, setMenu] = useState(false)
@@ -100,9 +202,34 @@ function SessionRow({
     else setDraft(entry.title)
   }
 
+  const titleInput = (
+    <input
+      ref={inputRef}
+      className="hist-title-input"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') commit()
+        if (e.key === 'Escape') {
+          setDraft(entry.title)
+          setEditing(false)
+        }
+      }}
+    />
+  )
+
   return (
     <div
-      className={`hist ${active ? 'is-active' : ''} ${unread ? 'is-unread' : ''}`}
+      // `hist` stays on dense rows: it carries the hover actions, the move-to
+      // menu and the drag affordance, which the redesign keeps as they are.
+      className={
+        dense
+          ? `hist sx-row-done ${active ? 'is-selected' : ''} ${unread ? 'is-unread' : ''}`
+          : `hist ${active ? 'is-active' : ''} ${unread ? 'is-unread' : ''}`
+      }
       // Dragging must be off while renaming or the input cannot be selected.
       draggable={!editing}
       onDragStart={(e) => {
@@ -114,49 +241,58 @@ function SessionRow({
       onClick={() => {
         if (!editing) onOpen(entry)
       }}
+      title={dense ? `${entry.title}\n${shortenPath(entry.cwd, home)}` : undefined}
     >
-      {editing ? (
-        <input
-          ref={inputRef}
-          className="hist-title-input"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => {
-            e.stopPropagation()
-            if (e.key === 'Enter') commit()
-            if (e.key === 'Escape') {
-              setDraft(entry.title)
-              setEditing(false)
-            }
-          }}
-        />
+      {dense ? (
+        <>
+          {/* A finished session says everything it has to say on one line. */}
+          <span className={`dot ${busy ? 'dot-running' : unread ? 'dot-attn' : 'dot-done'}`} />
+          {editing ? (
+            titleInput
+          ) : (
+            <span
+              className="sx-title"
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                setEditing(true)
+              }}
+            >
+              {entry.title}
+            </span>
+          )}
+          <span className="sx-elapsed">{elapsedLabel(entry.modifiedMs)}</span>
+        </>
       ) : (
-        <div
-          className="hist-title"
-          onDoubleClick={(e) => {
-            e.stopPropagation()
-            setEditing(true)
-          }}
-          title={`${entry.title}\n\nDouble-click to rename`}
-        >
-          {entry.title}
-        </div>
+        <>
+          {editing ? (
+            titleInput
+          ) : (
+            <div
+              className="hist-title"
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                setEditing(true)
+              }}
+              title={`${entry.title}\n\nDouble-click to rename`}
+            >
+              {entry.title}
+            </div>
+          )}
+          <div className="hist-meta">
+            <span className="hist-cwd">{shortenPath(entry.cwd, home)}</span>
+            {busy ? <span className="hist-busy" title="Working in this session">working</span> : null}
+            {/* Only when idle: while it is still working, "working" is the truer
+                label and two badges on one row is noise. */}
+            {unread && !busy ? (
+              <span className="hist-new" title="Answered while you were elsewhere">
+                <span className="pip" />
+                new
+              </span>
+            ) : null}
+            <span>{elapsedLabel(entry.modifiedMs)}</span>
+          </div>
+        </>
       )}
-      <div className="hist-meta">
-        <span className="hist-cwd">{shortCwd(entry.cwd, home)}</span>
-        {busy ? <span className="hist-busy" title="Working in this session">working</span> : null}
-        {/* Only when idle: while it is still working, "working" is the truer
-            label and two badges on one row is noise. */}
-        {unread && !busy ? (
-          <span className="hist-new" title="Answered while you were elsewhere">
-            <span className="pip" />
-            new
-          </span>
-        ) : null}
-        <span>{relativeTime(entry.modifiedMs)}</span>
-      </div>
       {!editing && (
         <div className="hist-actions">
           <button
@@ -419,6 +555,22 @@ interface Props {
   unreadSessionIds: string[]
   /** Incremented by the host (Cmd+G) to create a group. */
   newGroupSignal: number
+  /** Live status for every conversation currently open, unsorted. */
+  vitals: SessionVitals[]
+  /** Conversation id on screen (NOT a sessionId). */
+  activeConversationId: string
+  /** Switch to an already-open conversation by conversation id. */
+  onSelectConversation: (id: string) => void
+  /** Short build sha for the footer, may be empty. */
+  build?: string
+  /**
+   * Flattened, already lower-cased transcript text per open conversation, keyed
+   * by conversation id. Searching a live agent's output needs the turns App
+   * holds; the sidebar only ever has history rows.
+   */
+  searchTextById?: Record<string, string>
+  /** Attached to the search field so the host's `/` and Cmd+F can focus it. */
+  searchRef?: React.Ref<HTMLInputElement>
 }
 
 export function Sidebar({
@@ -433,6 +585,12 @@ export function Sidebar({
   busySessionIds,
   unreadSessionIds,
   newGroupSignal,
+  vitals,
+  activeConversationId,
+  onSelectConversation,
+  build,
+  searchTextById,
+  searchRef,
 }: Props): React.ReactElement {
   const [entries, setEntries] = useState<HistoryEntry[]>([])
   const [groups, setGroups] = useState<SessionGroup[]>([])
@@ -490,19 +648,164 @@ export function Sidebar({
 
   const byId = useMemo(() => new Map(entries.map((e) => [e.sessionId, e])), [entries])
 
+  // ---- search ------------------------------------------------------------
+
+  /*
+   * The handoff asks search to match titles, working directories *and*
+   * transcript output. The three sources of that text are very different in
+   * cost, so they are searched in three tiers:
+   *
+   *   1. Title, path and opening prompt of a recorded session — in hand already.
+   *   2. Flattened transcripts of the open conversations — handed down by App,
+   *      cached there against the turns array.
+   *   3. Full transcripts of recorded sessions — one file read each, so only on
+   *      a query worth it, lazily, cached, and never on the keystroke itself.
+   */
+
+  /** The query, debounced. Clearing is instant; typing is not. */
+  const [query, setQuery] = useState('')
+  useEffect(() => {
+    const next = filter.trim().toLowerCase()
+    if (!next) {
+      setQuery('')
+      return
+    }
+    const t = window.setTimeout(() => setQuery(next), 160)
+    return () => window.clearTimeout(t)
+  }, [filter])
+
+  /** Tier 1: everything a history row already carries. */
+  const shallowMatch = useCallback(
+    (e: HistoryEntry, q: string) =>
+      e.title.toLowerCase().includes(q) ||
+      e.cwd.toLowerCase().includes(q) ||
+      // The opening prompt is transcript output, and it was already loaded.
+      e.firstPrompt.toLowerCase().includes(q),
+    [],
+  )
+
+  /** sessionId -> flattened transcript, for every recorded session ever scanned. */
+  const deepCache = useRef(new Map<string, string>())
+  const [deepHits, setDeepHits] = useState<Set<string>>(new Set())
+  const [scanning, setScanning] = useState(false)
+
+  useEffect(() => {
+    if (query.length < DEEP_MIN) {
+      setDeepHits(new Set())
+      setScanning(false)
+      return
+    }
+    let cancelled = false
+    const q = query
+    const hits = new Set<string>()
+
+    // Only sessions a cheap match cannot already reach.
+    const candidates = entries.filter((e) => !shallowMatch(e, q))
+    // Anything read for an earlier query stays in memory, so refining a query
+    // over the same corpus costs nothing.
+    const unread = candidates.filter((e) => {
+      const cached = deepCache.current.get(e.sessionId)
+      if (cached === undefined) return true
+      if (cached.includes(q)) hits.add(e.sessionId)
+      return false
+    })
+    setDeepHits(new Set(hits))
+
+    if (!unread.length) {
+      setScanning(false)
+      return
+    }
+    setScanning(true)
+    void (async () => {
+      for (let i = 0; i < unread.length && !cancelled; i += DEEP_CHUNK) {
+        const slice = unread.slice(i, i + DEEP_CHUNK)
+        const texts = await Promise.all(
+          slice.map(async (e) => {
+            try {
+              return searchText(await desk.historyRead(e.projectSlug, e.sessionId), DEEP_CAP)
+            } catch {
+              // An unreadable transcript is cached as empty rather than retried
+              // on every keystroke.
+              return ''
+            }
+          }),
+        )
+        if (cancelled) return
+        let added = false
+        slice.forEach((e, j) => {
+          deepCache.current.set(e.sessionId, texts[j])
+          if (texts[j].includes(q)) {
+            hits.add(e.sessionId)
+            added = true
+          }
+        })
+        // Results appear as they are found rather than after the whole sweep.
+        if (added) setDeepHits(new Set(hits))
+      }
+      if (!cancelled) setScanning(false)
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [query, entries, shallowMatch])
+
   const matches = useCallback(
     (e: HistoryEntry) => {
-      const q = filter.toLowerCase()
-      if (!q) return true
-      return e.title.toLowerCase().includes(q) || e.cwd.toLowerCase().includes(q)
+      if (!query) return true
+      return shallowMatch(e, query) || deepHits.has(e.sessionId)
     },
-    [filter],
+    [query, shallowMatch, deepHits],
   )
+
+  // ---- live status sections ----------------------------------------------
+
+  const vitalsMatches = useCallback(
+    (v: SessionVitals) => {
+      if (!query) return true
+      return (
+        v.title.toLowerCase().includes(query) ||
+        v.cwd.toLowerCase().includes(query) ||
+        v.lastLine.toLowerCase().includes(query) ||
+        // Already lower-cased upstream.
+        (searchTextById?.[v.id]?.includes(query) ?? false)
+      )
+    },
+    [query, searchTextById],
+  )
+
+  // Blocked belongs under NEEDS YOU: from the list's point of view both mean a
+  // person has to do something before the agent moves again.
+  const needsYou = useMemo(
+    () =>
+      vitals
+        .filter((v) => (v.state === 'needs_you' || v.state === 'blocked') && vitalsMatches(v))
+        .sort(byStateThenRecency),
+    [vitals, vitalsMatches],
+  )
+  const running = useMemo(
+    () => vitals.filter((v) => v.state === 'running' && vitalsMatches(v)).sort(byStateThenRecency),
+    [vitals, vitalsMatches],
+  )
+
+  /**
+   * Sessions already accounted for above. A row that is live says more than the
+   * history entry behind it, so the history sections drop the duplicate rather
+   * than listing the same session twice with two different stories.
+   */
+  const liveSessionIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const v of vitals) if (v.state !== 'done' && v.sessionId) ids.add(v.sessionId)
+    return ids
+  }, [vitals])
 
   const groupedIds = useMemo(() => new Set(groups.flatMap((g) => g.sessionIds)), [groups])
   const ungrouped = useMemo(
-    () => entries.filter((e) => !groupedIds.has(e.sessionId) && matches(e)),
-    [entries, groupedIds, matches],
+    () =>
+      entries.filter(
+        (e) => !groupedIds.has(e.sessionId) && !liveSessionIds.has(e.sessionId) && matches(e),
+      ),
+    [entries, groupedIds, liveSessionIds, matches],
   )
 
   const buckets = useMemo(() => {
@@ -511,6 +814,22 @@ export function Sidebar({
     for (const e of ungrouped) out[bucketOf(e.modifiedMs, now)].push(e)
     return out
   }, [ungrouped])
+
+  /**
+   * The footer counts the corpus, not the view: it is there to say how much
+   * history exists behind the list, so a filter must not change it.
+   */
+  const archive = useMemo(() => {
+    const now = Date.now()
+    let week = 0
+    let before = 0
+    for (const e of entries) {
+      const b = bucketOf(e.modifiedMs, now)
+      if (b === 'week') week++
+      else if (b === 'before') before++
+    }
+    return { week, before }
+  }, [entries])
 
   // ---- group mutations ---------------------------------------------------
 
@@ -635,6 +954,29 @@ export function Sidebar({
     setDropTarget(null)
   }, [])
 
+  /** How many grouped sessions survive the query, for the empty state. */
+  const groupHits = useMemo(
+    () =>
+      groups.reduce(
+        (n, g) =>
+          n +
+          g.sessionIds.filter((id) => {
+            const e = byId.get(id)
+            return Boolean(e) && matches(e as HistoryEntry)
+          }).length,
+        0,
+      ),
+    [groups, byId, matches],
+  )
+
+  /**
+   * The whole column came back empty. Distinct from "this section is empty":
+   * only then is it worth saying anything, and what to say depends on whether a
+   * query is what emptied it.
+   */
+  const nothingVisible =
+    !loading && !needsYou.length && !running.length && !groupHits && !ungrouped.length
+
   const busy = new Set(busySessionIds)
   const unread = new Set(unreadSessionIds)
   /** sessionId -> the group holding it, for the per-row menu. */
@@ -653,42 +995,105 @@ export function Sidebar({
   }
 
   return (
-    <aside className="sidebar">
-      <div className="sidebar-head">
-        <button className="btn btn-primary sidebar-new" onClick={onNew} title="New session (Cmd+T)">
-          +
+    <aside className="sidebar sx-sidebar">
+      <div className="sx-head">
+        <div className="sx-search">
+          <span className="sx-slash">/</span>
+          <input
+            ref={searchRef}
+            className="sx-search-input"
+            placeholder="Search sessions, paths, output…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            onKeyDown={(e) => {
+              // Escape hands the keyboard back rather than leaving you stuck in
+              // a field you only meant to glance at.
+              if (e.key !== 'Escape') return
+              if (filter) setFilter('')
+              else e.currentTarget.blur()
+            }}
+          />
+          <span className="keyhint">⌘K</span>
+        </div>
+        <button className="sx-new" onClick={onNew} title="New session (Cmd+T)">
+          ＋
         </button>
-        <button className="btn" onClick={newGroup} title="Create a session group (Cmd+G)">
-          + Group
+      </div>
+
+      {/* Kept off the header row: it is a search field and one primary action,
+          and three more glyphs beside them is the chrome the redesign trims. */}
+      <div className="sx-tools">
+        <button className="sx-tool" onClick={newGroup} title="Create a session group (Cmd+G)">
+          ＋ Group
         </button>
         <button
-          className="btn sidebar-refresh"
+          className="sx-tool sx-tool-end"
           onClick={() => void reload()}
           disabled={refreshing}
           title="Re-read ~/.claude/projects"
         >
           {refreshing ? '·' : '↻'}
         </button>
-        <button className="btn sidebar-close" onClick={onClose} title="Hide sessions (Cmd+B)">
+        <button className="sx-tool" onClick={onClose} title="Hide sessions (Cmd+B)">
           ‹
         </button>
       </div>
-      <input
-        className="filter"
-        placeholder="Search sessions..."
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-      />
 
       <div className="sidebar-list">
-        {loading && <p className="panel-hint">Reading ~/.claude/projects...</p>}
+        {loading && <p className="sx-note">Reading ~/.claude/projects…</p>}
+
+        {/* Say when the slow tier is running: a search that is still reading
+            transcripts must not look like a search that found nothing. */}
+        {scanning && <p className="sx-note">Reading transcripts…</p>}
+
+        {/* Status first: the open conversations, sorted so anything waiting on
+            a person is the first thing in the column. */}
+        {needsYou.length > 0 && (
+          <>
+            <SectionHead label="Needs you" count={needsYou.length} />
+            {needsYou.map((v) => (
+              <VitalsRow
+                key={v.id}
+                vitals={v}
+                home={home}
+                selected={v.id === activeConversationId}
+                onSelect={onSelectConversation}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+              />
+            ))}
+          </>
+        )}
+
+        {running.length > 0 && (
+          <>
+            <SectionHead label="Running" count={running.length} />
+            {running.map((v) => (
+              <VitalsRow
+                key={v.id}
+                vitals={v}
+                home={home}
+                selected={v.id === activeConversationId}
+                onSelect={onSelectConversation}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+              />
+            ))}
+          </>
+        )}
 
         {groups.map((g) => {
-          const members = g.sessionIds.map((id) => byId.get(id)).filter((e): e is HistoryEntry => Boolean(e))
+          // Same de-dupe the time buckets apply: a session that is currently
+          // live already has a status row at the top of the column, and listing
+          // its history entry here too showed it twice with two different
+          // stories. The count still reflects real membership.
+          const members = g.sessionIds
+            .map((id) => byId.get(id))
+            .filter((e): e is HistoryEntry => Boolean(e) && !liveSessionIds.has(e!.sessionId))
           const visible = members.filter(matches)
           // Keep a group on screen while filtering only if something matches,
           // but always show it when the filter is empty so it can be dropped on.
-          if (filter && !visible.length) return null
+          if (query && !visible.length) return null
           return (
             <div key={g.id} className={`grp grp-${g.color}`} {...dropHandlers(g.id)}>
               <GroupHeader
@@ -725,7 +1130,7 @@ export function Sidebar({
                       {...rowProps}
                     />
                   ))}
-                  {!members.length && <p className="grp-empty">Drag here, or use ··· on a session</p>}
+                  {!members.length && <p className="sx-note">Drag here, or use ··· on a session</p>}
                 </div>
               )}
             </div>
@@ -737,7 +1142,31 @@ export function Sidebar({
           {...dropHandlers(null)}
         >
           {groups.length > 0 && ungrouped.length > 0 && <div className="grp-divider">Ungrouped</div>}
-          {!loading && !ungrouped.length && !groups.length && <p className="panel-hint">No sessions found.</p>}
+
+          {/* A query that found nothing and an account with no history are two
+              different situations, and only one of them has a way out. */}
+          {nothingVisible && !scanning && (
+            <div className="sx-empty">
+              <span className="eyebrow">{query ? 'No match' : 'No sessions'}</span>
+              {query ? (
+                <>
+                  <p className="sx-note">
+                    Nothing in titles, paths or transcript output matches “{filter.trim()}”.
+                  </p>
+                  <button className="obtn" onClick={() => setFilter('')}>
+                    Clear search
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="sx-note">Nothing recorded in ~/.claude/projects yet.</p>
+                  <button className="pbtn" onClick={onNew}>
+                    ＋ New session
+                  </button>
+                </>
+              )}
+            </div>
+          )}
 
           {BUCKET_LABELS.map(({ key, label }) => {
             const items = buckets[key]
@@ -746,12 +1175,13 @@ export function Sidebar({
             return (
               <div key={key} className="time-sec">
                 <button
-                  className="time-sec-head"
+                  className="sx-sec"
                   onClick={() => setOpenBuckets((b) => ({ ...b, [key]: !b[key] }))}
                 >
-                  <span className="grp-caret">{open ? '▾' : '▸'}</span>
-                  <span className="time-sec-label">{label}</span>
-                  <span className="time-sec-n">{items.length}</span>
+                  <span className="sx-sec-caret">{open ? '▾' : '▸'}</span>
+                  <span className="eyebrow">{label}</span>
+                  <span className="sx-sec-n">{items.length}</span>
+                  <div className="rule" />
                 </button>
                 {open &&
                   items.map((e) => (
@@ -762,6 +1192,7 @@ export function Sidebar({
                       busy={busy.has(e.sessionId)}
                       unread={unread.has(e.sessionId)}
                       groupId={groupOf.get(e.sessionId) ?? null}
+                      dense
                       {...rowProps}
                     />
                   ))}
@@ -771,6 +1202,12 @@ export function Sidebar({
         </div>
       </div>
 
+      <div className="sx-foot">
+        <span>This week {archive.week}</span>
+        <span>Before {archive.before}</span>
+        <div className="sx-foot-gap" />
+        {build ? <span>{build}</span> : null}
+      </div>
     </aside>
   )
 }

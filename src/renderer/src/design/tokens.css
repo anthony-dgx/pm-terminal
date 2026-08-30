@@ -1,0 +1,361 @@
+/*
+ * Atelier shell design tokens.
+ *
+ * Imported before styles.css so themes can still override the base palette.
+ *
+ * Two layers live here:
+ *
+ *   1. The base palette (--bg, --text, --accent ...) — the twelve variables the
+ *      app has always had. :root now carries the Datadog dark values from the
+ *      shell redesign, which makes the redesign the default look. Every other
+ *      theme keeps overriding these twelve and keeps working.
+ *
+ *   2. A semantic layer (--surface-*, --line-*, --fg-*, --attn-*, radii ...).
+ *      The redesigned shell is written against these, never against raw hexes,
+ *      so a theme swap carries the new chrome with it.
+ *
+ * :root spells the semantic tokens out as exact hexes, because the default
+ * theme is specified pixel-for-pixel in the handoff. Every other theme derives
+ * them from its own base palette further down, so a theme author still only has
+ * to supply the original twelve.
+ *
+ * Palette discipline (the core of the visual fix): two hues plus neutrals.
+ *   violet = active / primary   amber = a human is needed   grey = everything else
+ * Deliberately no green or red status colors.
+ */
+
+:root {
+  /* ---- base palette: Datadog dark (the new default) ---- */
+  --bg: #0e0b14;   /* window / transcript canvas */
+  --bg-1: #110d18; /* chrome panels: sessions, inspector */
+  --bg-2: #17121f; /* cards, fields */
+  --bg-3: #1e1729; /* selected + hover */
+  --line: #2a2136;
+  --text: #edeaf2;
+  --text-dim: #a79fb5;
+  --text-faint: #7a7188;
+  --accent: #9c43fe;
+  /* Kept for syntax highlighting, diffs and the pixel pet. The shell itself
+     never uses ok/err: status is carried by violet, amber and grey alone. */
+  --ok: #4ade80;
+  --warn: #ff9b00;
+  --err: #f87171;
+
+  --mono: 'Roboto Mono', ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --sans: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+
+  /* ---- surfaces ---- */
+  --canvas: #08060c;          /* behind the window */
+  --surface-window: #0e0b14;
+  --surface-chrome: #110d18;
+  --surface-bar: #120e1a;     /* title bar, status footer */
+  --surface-card: #17121f;
+  --surface-inset: #141019;   /* composer well */
+  --surface-raised: #181221;  /* command palette */
+  --surface-selected: #1e1729;
+
+  /* ---- borders, weakest to strongest ---- */
+  --line-soft: #1f1929;    /* rules inside a panel */
+  --line-mid: #241c30;     /* panel edges, card borders */
+  --line-strong: #2a2136;  /* window, fields */
+  --line-btn: #3a3245;       /* outline buttons */
+  --line-btn-hover: #4a4257; /* ...and their hover, per the handoff */
+  --line-dots: #3e3648;      /* window dots */
+
+  /* Scrim behind a modal or the command palette. */
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  /* ---- text ramp ---- */
+  --fg: #edeaf2;           /* primary */
+  --fg-body: #c6c0d1;      /* assistant prose */
+  --fg-dim: #a79fb5;       /* secondary */
+  --fg-muted: #8c8c99;     /* done rows */
+  --fg-faint: #7a7188;     /* tertiary, figures */
+  --fg-hint: #6f667e;      /* eyebrows, hints */
+  --fg-placeholder: #5f5670;
+
+  /* ---- accents: violet = active, amber = needs a human ---- */
+  --primary: #5c00ef;        /* primary action fill */
+  --primary-hover: #4a00c4;
+  --accent-soft: #cc99fe;
+  --accent-deep: #332851;    /* third series in the spend split */
+  --brand-gradient: linear-gradient(120deg, #5c00ef 0%, #9c43fe 100%);
+
+  --attn: #ff9b00;           /* dot */
+  --attn-fg: #ffbb4d;        /* label + text */
+
+  /* ---- radii ---- */
+  --r-key: 3px;    /* key hints */
+  --r-btn: 4px;    /* buttons, chips */
+  --r-field: 5px;  /* inputs */
+  --r-row: 6px;    /* list rows, inspector cards */
+  --r-card: 8px;   /* session cards, composer */
+  --r-window: 10px;
+
+  /* ---- elevation ---- */
+  --shadow-window: 0 24px 64px rgba(0, 0, 0, 0.5);
+  --shadow-palette: 0 32px 80px rgba(0, 0, 0, 0.7);
+
+  /* ---- motion ---- */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --pulse: 1.8s;
+
+  /* ---- spacing rhythm ---- */
+  --s1: 4px;
+  --s2: 6px;
+  --s3: 8px;
+  --s4: 10px;
+  --s5: 12px;
+  --s6: 14px;
+  --s7: 18px;
+  --s8: 24px;
+  --s9: 32px;
+
+  /* ---- the transcript measure ----
+     One knob for how wide the reading column runs. The handoff specified a
+     fixed 720px; in a maximised window that stranded most of the screen, so it
+     now fills the column and only the side padding holds it off the edges.
+     Set this back to 720px to restore the handoff's narrow measure. */
+  --tx-measure: none;
+  --tx-pad: 40px;
+}
+
+/*
+ * Every theme that is not the default derives the semantic layer from its own
+ * twelve base colors. A theme author supplies the palette; the chrome follows.
+ *
+ * color-mix does the work: surfaces step away from --bg, the text ramp walks
+ * --text toward --bg, and the attention hue comes from --warn. Written as one
+ * :not() block rather than repeated per theme so adding a theme stays a
+ * twelve-variable job.
+ */
+:root[data-theme]:not([data-theme='default']) {
+  --canvas: color-mix(in srgb, var(--bg) 82%, #000);
+  --surface-window: var(--bg);
+  --surface-chrome: var(--bg-1);
+  --surface-bar: var(--bg-1);
+  --surface-card: var(--bg-2);
+  --surface-inset: color-mix(in srgb, var(--bg) 70%, var(--bg-2));
+  --surface-raised: var(--bg-2);
+  --surface-selected: var(--bg-3);
+
+  --line-soft: color-mix(in srgb, var(--line) 55%, var(--bg));
+  --line-mid: color-mix(in srgb, var(--line) 78%, var(--bg));
+  --line-strong: var(--line);
+  --line-btn: color-mix(in srgb, var(--line) 72%, var(--text));
+  --line-btn-hover: color-mix(in srgb, var(--line) 52%, var(--text));
+  --line-dots: color-mix(in srgb, var(--line) 60%, var(--text));
+  --scrim: rgba(0, 0, 0, 0.55);
+
+  --fg: var(--text);
+  /*
+   * Assistant prose is the most-read text in the app, so it does NOT get
+   * softened here. The default theme spells out a gentler #c6c0d1 because its
+   * --text starts at 15:1 and can afford the step; a derived theme cannot.
+   * Solarized's --text is only ~5.2:1 on its own background, and mixing it 16%
+   * toward --bg measured 3.35:1 — below the 4.5:1 floor for body copy.
+   * The hierarchy still exists; it is carried by --fg-dim/-muted/-faint below,
+   * which dress secondary content rather than prose.
+   */
+  --fg-body: var(--text);
+  --fg-dim: var(--text-dim);
+  --fg-muted: color-mix(in srgb, var(--text-dim) 82%, var(--bg));
+  --fg-faint: var(--text-faint);
+  --fg-hint: color-mix(in srgb, var(--text-faint) 86%, var(--bg));
+  --fg-placeholder: color-mix(in srgb, var(--text-faint) 72%, var(--bg));
+
+  --primary: var(--accent);
+  --primary-hover: color-mix(in srgb, var(--accent) 82%, #000);
+  --accent-soft: color-mix(in srgb, var(--accent) 62%, #fff);
+  --accent-deep: color-mix(in srgb, var(--accent) 34%, var(--bg));
+  --brand-gradient: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--accent) 78%, #000) 0%,
+    var(--accent) 100%
+  );
+
+  --attn: var(--warn);
+  --attn-fg: color-mix(in srgb, var(--warn) 74%, #fff);
+}
+
+/*
+ * Light themes need the ramps to run the other way.
+ *
+ * On a dark theme the attention hue is pushed toward white to lift it off the
+ * background; do that on a light theme and amber text lands on cream at about
+ * 1.5:1 and effectively disappears. Same for the surface ramp, which would
+ * otherwise make every panel darker than the page behind it.
+ *
+ * The `:not()` is carried through purely for specificity: the derivation block
+ * above scores 0,3,0, so a plain `[data-theme$='-light']` at 0,2,0 would lose
+ * to it and none of this would apply. Matching its specificity and coming
+ * later is what makes these win. The day/latte themes are named individually
+ * because their ids do not end in `-light`.
+ */
+:root[data-theme$='-light']:not([data-theme='default']),
+:root[data-theme$='-day']:not([data-theme='default']),
+:root[data-theme='catppuccin-latte']:not([data-theme='default']),
+:root[data-theme='tokyo-day-desert-neon']:not([data-theme='default']) {
+  --canvas: color-mix(in srgb, var(--bg) 92%, #000);
+  --surface-inset: color-mix(in srgb, var(--bg) 70%, #fff);
+  --line-soft: color-mix(in srgb, var(--line) 45%, var(--bg));
+  --line-btn: color-mix(in srgb, var(--line) 72%, #000);
+  --line-btn-hover: color-mix(in srgb, var(--line) 50%, #000);
+  --scrim: rgba(0, 0, 0, 0.32);
+  /* Same reasoning as the dark derivation: prose keeps the theme's full --text.
+     solarized-light and tokyo-night-day both measured under 4:1 when this
+     softened it. */
+  --fg-body: var(--text);
+  --fg-muted: color-mix(in srgb, var(--text-dim) 84%, #000);
+  --fg-hint: color-mix(in srgb, var(--text-faint) 88%, #000);
+  --fg-placeholder: color-mix(in srgb, var(--text-faint) 74%, var(--bg));
+  --accent-soft: color-mix(in srgb, var(--accent) 62%, #000);
+  /*
+   * 60%, not 72%: amber has to go genuinely dark to carry text on a light
+   * background. At 72% the attention label on the permission prompt's own
+   * amber-tinted card measured 3.8:1 on catppuccin-latte, whose surfaces are
+   * the lightest of any theme. 60% puts every light theme over 4.5:1.
+   */
+  --attn-fg: color-mix(in srgb, var(--warn) 60%, #000);
+}
+
+/*
+ * The old default palette, kept selectable so the redesign is a change of
+ * default rather than a loss. Same twelve variables it always had; the
+ * derivation block above dresses the new chrome in them.
+ */
+:root[data-theme='classic'] {
+  --bg: #14151a;
+  --bg-1: #1a1c22;
+  --bg-2: #21242c;
+  --bg-3: #2a2e38;
+  --line: #313641;
+  --text: #e4e6eb;
+  --text-dim: #9aa1af;
+  --text-faint: #6b7280;
+  --accent: #7aa2f7;
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --err: #f87171;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+
+/* ---- shared primitives the redesigned shell leans on ---- */
+
+/* The only continuous animation in the app: running dots and the palette
+   caret. Everything else is a 120-360ms fade or a small translate. */
+@keyframes ddPulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--fg-hint);
+}
+.dot-running {
+  background: var(--accent);
+  animation: ddPulse var(--pulse) var(--ease-standard) infinite;
+}
+.dot-attn {
+  background: var(--attn);
+}
+.dot-done {
+  background: var(--fg-hint);
+}
+.dot-idle {
+  background: var(--fg-faint);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot-running {
+    animation: none;
+  }
+}
+
+/* Eyebrow: every group header, state label and section title in the shell. */
+.eyebrow {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fg-hint);
+}
+
+/* A rule that eats the rest of the row, next to a group header. */
+.rule {
+  flex: 1;
+  height: 1px;
+  background: var(--line-soft);
+  min-width: 8px;
+}
+
+/* Outline button: the shell's default action. Text-first, never filled. */
+.obtn {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg);
+  background: none;
+  border: 1px solid var(--line-btn);
+  border-radius: var(--r-btn);
+  padding: 4px 10px;
+  transition: border-color 160ms var(--ease-standard), color 160ms var(--ease-standard);
+}
+.obtn:hover {
+  border-color: var(--line-btn-hover);
+}
+.obtn-quiet {
+  color: var(--fg-dim);
+  border-color: var(--line-strong);
+}
+
+/* Filled violet: reserved for the one primary action in a view. */
+.pbtn {
+  font-family: var(--mono);
+  font-weight: 500;
+  font-size: 12px;
+  color: #fff;
+  background: var(--primary);
+  border: none;
+  border-radius: var(--r-btn);
+  padding: 6px 14px;
+  transition: background 160ms var(--ease-standard);
+}
+.pbtn:hover {
+  background: var(--primary-hover);
+}
+
+/* Key hint: ⌘K, ⏎ send, and friends. */
+.keyhint {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-key);
+  padding: 1px 5px;
+}
+
+/* Progress: a static fill driven by a real step count. Never an
+   indeterminate crawl — the redesign deliberately removed that. */
+.track {
+  height: 2px;
+  border-radius: 1px;
+  background: var(--line-mid);
+  overflow: hidden;
+}
+.track > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 240ms var(--ease-standard);
+}

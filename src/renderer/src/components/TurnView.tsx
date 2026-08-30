@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Block, Turn } from '../../../shared/types.js'
 import { desk } from '../lib/api.js'
+import { fmtCost, fmtTokens } from '../lib/sessionState.js'
 import { CopyButton } from './Copy.js'
 import { Markdown } from './Markdown.js'
 import {
@@ -121,60 +122,64 @@ function ImageBlockView({ block }: { block: Extract<Block, { kind: 'image' }> })
   )
 }
 
+/**
+ * Reasoning, collapsed to a pill that sits in the flow of the reply.
+ *
+ * It reads as a footnote rather than a section: one line you can pop open, not
+ * a panel you have to scroll past to reach the answer.
+ */
 function ThinkingView({ text }: { text: string }): React.ReactElement {
   const [open, setOpen] = useState(false)
   return (
-    <div className="thinking">
-      <div className="thinking-head" onClick={() => setOpen((o) => !o)}>
-        <span className="tool-caret">{open ? '▾' : '▸'}</span>
-        <span>Thinking</span>
-      </div>
-      {open && <pre className="tool-pre thinking-pre">{text}</pre>}
-    </div>
+    <>
+      <button
+        className="tx-think"
+        onClick={() => setOpen((o) => !o)}
+        title={open ? 'Hide the reasoning' : 'Show the reasoning'}
+      >
+        {open ? '▾' : '▸'} thought
+      </button>
+      {open && <pre className="tx-think-text">{text}</pre>}
+    </>
   )
 }
 
 /**
  * Everything the agent did to get to the answer, folded behind one line.
  *
- * Tool calls and reasoning used to sit inline and dominate the transcript. The
- * answer is what you are reading for, so the work is one click away instead.
+ * Tool calls used to sit inline and dominate the transcript. The answer is what
+ * you are reading for, so the work is one click away instead.
  */
-function Activity({ blocks }: { blocks: Block[] }): React.ReactElement | null {
+function Activity({ tools }: { tools: Extract<Block, { kind: 'tool' }>[] }): React.ReactElement | null {
   const [open, setOpen] = useState(false)
-  const tools = blocks.filter((b) => b.kind === 'tool')
-  if (!blocks.length) return null
+  if (!tools.length) return null
 
-  const running = tools.some((b) => b.kind === 'tool' && b.result === undefined)
-  const seconds = tools.reduce((sum, b) => sum + (b.kind === 'tool' ? (b.durationMs ?? 0) : 0), 0) / 1000
-  const names = [...new Set(tools.map((b) => (b.kind === 'tool' ? b.name : '')))].filter(Boolean)
-
-  const label = tools.length
-    ? `${tools.length} step${tools.length === 1 ? '' : 's'}`
-    : 'Thought about it'
+  const running = tools.some((b) => b.result === undefined)
+  const seconds = tools.reduce((sum, b) => sum + (b.durationMs ?? 0), 0) / 1000
+  const names = [...new Set(tools.map((b) => b.name))]
 
   return (
-    <div className={`activity ${open ? 'is-open' : ''}`}>
-      <button className="activity-head" onClick={() => setOpen((o) => !o)}>
-        <span className="tool-caret">{open ? '▾' : '▸'}</span>
-        <span className="activity-label">{label}</span>
-        {!open && names.length > 0 && <span className="activity-names">{names.slice(0, 3).join(', ')}</span>}
+    <div className={`tx-activity ${open ? 'is-open' : ''}`}>
+      <button className="tx-activity-head" onClick={() => setOpen((o) => !o)}>
+        <span className="tx-caret">{open ? '▾' : '▸'}</span>
+        <span className="tx-activity-label">
+          {tools.length} step{tools.length === 1 ? '' : 's'}
+        </span>
+        {!open && names.length > 0 && (
+          <span className="tx-activity-names">{names.slice(0, 3).join(', ')}</span>
+        )}
         {running ? (
-          <span className="activity-time is-running">running</span>
+          <span className="tx-activity-time is-running">running</span>
         ) : (
-          seconds > 0 && <span className="activity-time">{seconds.toFixed(1)}s</span>
+          seconds > 0 && <span className="tx-activity-time">{seconds.toFixed(1)}s</span>
         )}
       </button>
 
       {open && (
-        <div className="activity-body">
-          {blocks.map((b, i) =>
-            b.kind === 'tool' ? (
-              <ToolBlockView key={b.id} block={b} />
-            ) : b.kind === 'thinking' ? (
-              <ThinkingView key={i} text={b.text} />
-            ) : null,
-          )}
+        <div className="tx-activity-body">
+          {tools.map((b) => (
+            <ToolBlockView key={b.id} block={b} />
+          ))}
         </div>
       )}
     </div>
@@ -191,15 +196,50 @@ function answerText(turn: Turn, streamBuffer?: string): string {
   return text || (streamBuffer ?? '').trim()
 }
 
+/**
+ * Per-turn figures, when the caller happens to know them.
+ *
+ * Every field is optional and every missing one is simply left out. Main tallies
+ * tokens and cost per *session*, not per turn, so in practice only `durationMs`
+ * arrives — measured by the host from the turn's own timestamp to the moment it
+ * stopped streaming. A guessed `4.1K in` would read exactly like a real one,
+ * which is worse than a shorter line.
+ */
+export interface TurnUsage {
+  inputTokens?: number
+  outputTokens?: number
+  costUsd?: number
+  /** Wall clock the turn took, measured by whoever watched it finish. */
+  durationMs?: number
+}
+
 interface TurnViewProps {
   turn: Turn
   /** Live text for a turn that has not yet received its authoritative blocks. */
   streamBuffer?: string
+  /**
+   * What the turn cost. A `Turn` carries no token or dollar figures of its own,
+   * only tool durations, so anything beyond wall-clock time has to be handed
+   * down. Whatever is missing is left out rather than printed as a zero — a
+   * confident `0.0K in · $0.00` is worse than no line at all.
+   */
+  usage?: TurnUsage
 }
 
-export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElement {
+/** The footer figures, in the order the handoff prints them. Empty means silent. */
+function usageParts(usage: TurnUsage | undefined, seconds: number | null): string[] {
+  const parts: string[] = []
+  if (usage?.inputTokens) parts.push(`${fmtTokens(usage.inputTokens)} in`)
+  if (usage?.outputTokens) parts.push(`${fmtTokens(usage.outputTokens)} out`)
+  if (usage?.costUsd) parts.push(fmtCost(usage.costUsd))
+  if (seconds !== null) parts.push(`${seconds.toFixed(1)}s`)
+  return parts
+}
+
+export function TurnView({ turn, streamBuffer, usage }: TurnViewProps): React.ReactElement {
   const isUser = turn.role === 'user'
-  const work = turn.blocks.filter((b) => b.kind === 'tool' || b.kind === 'thinking')
+  const tools = turn.blocks.filter((b) => b.kind === 'tool')
+  const thoughts = turn.blocks.filter((b) => b.kind === 'thinking')
   const said = turn.blocks.filter((b) => b.kind === 'text' || b.kind === 'image')
   const answer = answerText(turn, streamBuffer)
   // Not while streaming: a fence is not closed until it is closed, so a draft
@@ -207,34 +247,43 @@ export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElem
   const draft = turn.streaming ? null : draftOf(answer)
   const openReview = useReview()
 
+  // The wall clock for the whole turn, which is a different number from the
+  // Activity line's sum of tool durations: that one says how long the tools
+  // took, this one how long you waited. Silent when nobody measured it — a turn
+  // read back from history has no duration anyone observed.
+  const footer = usageParts(usage, usage?.durationMs !== undefined ? usage.durationMs / 1000 : null)
+
   return (
-    <div className={`msg msg-${turn.role}`}>
-      {!isUser && <div className="msg-avatar" aria-hidden="true">C</div>}
+    <div className={`tx-turn tx-turn-${turn.role}`}>
+      {/* The gutter is the only thing naming the speaker: no avatar, no bubble.
+          The transcript should read as a document, not as a chat log. */}
+      <span className="tx-speaker">{isUser ? 'YOU' : 'CLAUDE'}</span>
 
-      <div className="msg-main">
-        <div className="msg-who">{isUser ? 'You' : 'Claude'}</div>
+      <div className="tx-content">
+        {/* The work comes first because it happened first, but folded. */}
+        {!isUser && thoughts.map((b, i) => <ThinkingView key={`t${i}`} text={b.text} />)}
+        {!isUser && <Activity tools={tools} />}
 
-        <div className="msg-bubble">
-          {/* The work comes first because it happened first, but folded. */}
-          {!isUser && <Activity blocks={work} />}
-
-          {/* No Review button while the turn is still running: a fenced block
-              renders as soon as its opening fence arrives, so reviewing here
-              would snapshot half a document. */}
-          <ReviewContext.Provider value={turn.streaming ? null : openReview}>
-            {said.map((b, i) =>
-              b.kind === 'text' ? <Markdown key={i} source={b.text} /> : <ImageBlockView key={i} block={b} />,
-            )}
-            {streamBuffer && <Markdown source={streamBuffer} />}
-          </ReviewContext.Provider>
-          {turn.streaming && <span className="caret-blink" />}
-        </div>
+        {/* No Review button while the turn is still running: a fenced block
+            renders as soon as its opening fence arrives, so reviewing here
+            would snapshot half a document. */}
+        <ReviewContext.Provider value={turn.streaming ? null : openReview}>
+          {said.map((b, i) =>
+            b.kind === 'text' ? <Markdown key={i} source={b.text} /> : <ImageBlockView key={i} block={b} />,
+          )}
+          {streamBuffer && <Markdown source={streamBuffer} />}
+        </ReviewContext.Provider>
+        {turn.streaming && <span className="caret-blink" />}
 
         {/* Copy is scoped to the draft when there is one, because what you do
             with a draft is paste it somewhere else, and Claude's framing around
-            it is not part of what you send. "Copy all" stays for the rest. */}
-        {!isUser && answer && (
-          <div className="msg-actions">
+            it is not part of what you send. "Copy all" stays for the rest.
+
+            The timing rides along on the right of this row rather than taking a
+            line of its own: it is a footnote, and a one-line reply was three
+            stacked rows tall before — text, timing, actions. */}
+        {!isUser && (answer || footer.length > 0) && (
+          <div className="tx-actions">
             {draft ? (
               <>
                 <CopyButton text={() => draft} label="Copy draft" title="Copy just the drafted text" />
@@ -246,7 +295,8 @@ export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElem
                 />
               </>
             ) : (
-              <CopyButton text={() => answer} label="Copy answer" />
+              // No answer text means this row exists only to carry the timing.
+              answer && <CopyButton text={() => answer} label="Copy answer" />
             )}
             {/* Only on a document. On an ordinary reply there is nothing to
                 review, and the button used to be on every single one. */}
@@ -258,11 +308,10 @@ export function TurnView({ turn, streamBuffer }: TurnViewProps): React.ReactElem
                 Review
               </button>
             )}
+            {footer.length > 0 && <span className="tx-usage">{footer.join(' · ')}</span>}
           </div>
         )}
       </div>
-
-      {isUser && <div className="msg-avatar msg-avatar-you" aria-hidden="true">Y</div>}
     </div>
   )
 }

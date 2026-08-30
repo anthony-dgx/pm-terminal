@@ -1,0 +1,579 @@
+/*
+ * The transcript: turns, the thinking line, and the composer.
+ *
+ * Screen 1b of the shell redesign. The one idea behind all of it: the center
+ * column is a document you read, not a chat log you scroll. So there are no
+ * bubbles, no avatars and no boxes around what was said — a 720px measure, a
+ * speaker gutter, and everything else (work, reasoning, cost) folded down to a
+ * line of mono you can ignore.
+ *
+ * Loaded after styles.css. A handful of rules here deliberately override the
+ * old chat styling; each one says what it is undoing and why.
+ */
+
+/* ---- the measure ------------------------------------------------------- */
+
+/*
+ * Overrides `.chat-scroll` in styles.css (18px 22px 8px, plus two responsive
+ * variants): the transcript's own padding is now vertical only, because the
+ * horizontal measure comes from centering each turn rather than from the
+ * scroller's gutters. Two classes deep so window-width media queries do not
+ * put the old padding back.
+ */
+.chat > .chat-scroll {
+  /* Bottom padding is 0 because the composer below supplies its own, and
+     doubling them left a dead band under the last turn. The side padding is
+     what now holds the full-width measure off the panel edges. */
+  padding: 26px var(--tx-pad) 0;
+}
+
+.tx-turn {
+  position: relative;
+  display: flex;
+  gap: var(--s6);
+  max-width: var(--tx-measure);
+  /* 14px, not the handoff's 24px. With the timing folded into the action row a
+     turn is one or two rows tall, and 24px between them left the transcript
+     feeling sparse — two short messages read as unrelated blocks. */
+  margin: 0 auto var(--s6);
+}
+
+/* Right-aligned so the two labels share an edge and the prose starts on one
+   line no matter which of them is speaking. */
+.tx-speaker {
+  flex: none;
+  width: 52px;
+  padding-top: 3px;
+  text-align: right;
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  color: var(--fg-hint);
+  user-select: none;
+}
+.tx-turn-assistant .tx-speaker,
+.tx-turn-system .tx-speaker {
+  color: var(--accent);
+}
+
+.tx-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* Rows inside one turn are more related to each other than turns are to each
+     other, so this stays tighter than the turn margin above. */
+  gap: var(--s3);
+}
+
+/* ---- what was said ----------------------------------------------------- */
+
+/* Mono for the user because it is a command you typed, sans for the reply
+   because it is prose you read. */
+.tx-turn-user .md {
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--fg);
+}
+/*
+ * A prompt is shown back the way it was typed, so markdown must not swallow its
+ * line breaks — but this belongs on the blocks, not on the container. `marked`
+ * emits "<p>…</p>\n", and that trailing newline is a text node inside `.md`:
+ * with pre-wrap on the container it rendered as a blank line, making every
+ * single-line user turn 22px taller than its own text.
+ */
+.tx-turn-user .md p,
+.tx-turn-user .md li {
+  white-space: pre-wrap;
+}
+.tx-turn-assistant .md,
+.tx-turn-system .md {
+  font-size: 15px;
+  line-height: 1.62;
+  color: var(--fg-body);
+  text-wrap: pretty;
+}
+
+/*
+ * Em-dash markers. Markdown.tsx emits plain `<ul><li>`, so the marker is a
+ * pseudo-element rather than markup. Absolutely positioned instead of laid out
+ * with flex, so a list item that contains a paragraph or a nested list still
+ * stacks normally under its dash.
+ */
+.tx-turn .md ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.6em 0;
+}
+.tx-turn .md ul > li {
+  position: relative;
+  padding-left: 21px;
+  margin: 0;
+}
+.tx-turn .md ul > li::before {
+  content: '—';
+  position: absolute;
+  left: 0;
+  color: var(--primary);
+}
+.tx-turn .md li + li {
+  margin-top: 7px;
+}
+.tx-turn .md ol {
+  padding-left: 1.5em;
+  margin: 0.6em 0;
+}
+.tx-turn .md ol > li::marker {
+  font-family: var(--mono);
+  font-size: 0.85em;
+  color: var(--primary);
+}
+
+/* ---- reasoning --------------------------------------------------------- */
+
+/* A footnote, not a section: one pill in the flow of the reply. */
+.tx-think {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-hint);
+  background: none;
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-btn);
+  padding: 3px 9px;
+  transition: color 160ms var(--ease-standard), border-color 160ms var(--ease-standard);
+}
+.tx-think:hover {
+  color: var(--fg-dim);
+  border-color: var(--line-strong);
+}
+.tx-think-text {
+  margin: 0;
+  padding: var(--s4) var(--s5);
+  background: var(--surface-card);
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-row);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--fg-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 420px;
+  overflow: auto;
+}
+
+/* ---- folded activity --------------------------------------------------- */
+
+.tx-activity {
+  align-self: stretch;
+}
+.tx-activity-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-hint);
+  transition: color 160ms var(--ease-standard);
+}
+.tx-activity-head:hover {
+  color: var(--fg-dim);
+}
+.tx-caret {
+  width: 9px;
+  flex: none;
+}
+.tx-activity-names,
+.tx-activity-time {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tx-activity-label {
+  flex: none;
+  color: var(--fg-dim);
+}
+.tx-activity-names {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg-faint);
+}
+/* Reads as one sentence — `3 steps · Bash, Read` — without a separator span. */
+.tx-activity-names::before {
+  content: '· ';
+  color: var(--fg-hint);
+}
+.tx-activity-time {
+  margin-left: auto;
+  flex: none;
+  color: var(--fg-faint);
+}
+.tx-activity-time.is-running {
+  color: var(--accent);
+}
+.tx-activity-body {
+  border-left: 1px solid var(--line-mid);
+  padding-left: var(--s5);
+  margin: var(--s3) 0 0 var(--s1);
+}
+
+/* Overrides the red `.tool.is-error` border from styles.css. A failed tool
+   call is something a human has to look at, which in this palette is amber;
+   there is no red status color anywhere in the shell. */
+.tx-activity-body .tool.is-error {
+  border-color: var(--attn);
+}
+.tx-activity-body .err-tag {
+  color: var(--attn-fg);
+}
+
+/* ---- per-turn cost ----------------------------------------------------- */
+
+/* Rides the right end of the action row instead of taking a line of its own.
+   `margin-left: auto` is what pushes it there, so the row reads
+   "[Copy answer] .................. 0.7s". */
+.tx-usage {
+  margin-left: auto;
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-faint);
+}
+
+/* ---- copy / review actions --------------------------------------------- */
+
+/* Still hover-revealed, but anchored to the turn now that there is no bubble
+   to hang them under. */
+/*
+ * Pinned to the turn's bottom-right and taken out of flow, so the timing lands
+ * on the last line of the reply rather than claiming a row of its own:
+ *
+ *   CLAUDE  Hi! What can I help you with?              0.7s
+ *
+ * That is worth ~26px on every assistant turn. The canvas-coloured background
+ * and left padding are insurance: a last line long enough to reach the right
+ * edge is masked rather than collided with.
+ */
+.tx-actions {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding-left: var(--s4);
+  background: var(--surface-window);
+}
+.tx-actions > :not(.tx-usage) {
+  opacity: 0;
+  transition: opacity 120ms var(--ease-standard);
+}
+.tx-turn:hover .tx-actions > :not(.tx-usage),
+.tx-actions:focus-within > :not(.tx-usage) {
+  opacity: 1;
+}
+.tx-actions .copy-btn {
+  padding: 2px 9px;
+}
+/* Overrides the green `.copy-btn.is-done` in styles.css: the confirmation is a
+   state change, and state in this shell is violet or nothing. */
+.tx-actions .copy-btn.is-done {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---- thinking indicator ------------------------------------------------ */
+
+/* Replaces the boxed `.thinking-bar`. The agent working is the normal case, so
+   it reads as a status line on the measure rather than as an alert. */
+.tx-thinking {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  max-width: var(--tx-measure);
+  margin: 0 auto var(--s8);
+  padding-left: 66px; /* 52px gutter + the 14px turn gap: aligns with the prose */
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+}
+.tx-thinking-phase {
+  color: var(--fg-dim);
+}
+.tx-thinking-elapsed {
+  flex: 1;
+  color: var(--fg-faint);
+}
+/* Dimmed until the status line is hovered, but it is an `.obtn` in its own
+   right — the border brighten comes from tokens.css, so all that is needed here
+   is for a pointer landing straight on it to bring it to full strength. */
+.tx-thinking-stop {
+  opacity: 0.75;
+  transition: opacity 120ms var(--ease-standard);
+}
+.tx-thinking:hover .tx-thinking-stop,
+.tx-thinking-stop:hover {
+  opacity: 1;
+}
+
+/* ---- composer ---------------------------------------------------------- */
+
+/*
+ * Overrides `.composer` in styles.css (top border, panel background, 22px
+ * gutters). The composer is part of the transcript column now, on the same
+ * measure and the same surface, so the rule that separated it goes away.
+ */
+.composer.tx-composer {
+  border-top: none;
+  background: transparent;
+  /* Matches the scroller's side padding so the composer and the turns above it
+     share one left edge at any window width. */
+  padding: 0 var(--tx-pad) var(--s7);
+}
+
+.tx-measure {
+  position: relative;
+  max-width: var(--tx-measure);
+  margin: 0 auto;
+}
+
+/* The menu now hangs off the measure rather than off the full-width composer,
+   so the old 22px insets would double up. */
+.tx-composer .slash-menu {
+  left: 0;
+  right: 0;
+  background: var(--surface-raised);
+  border-color: var(--line-strong);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-palette);
+}
+
+.tx-well {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-card);
+  background: var(--surface-inset);
+  padding: 13px 14px 10px;
+  transition: border-color 160ms var(--ease-standard);
+}
+.tx-well:focus-within {
+  border-color: var(--line-btn);
+}
+
+/* The well carries the border and the background now; the textarea is just
+   text on it. Overrides `.composer textarea` in styles.css. */
+.composer.tx-composer textarea {
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--fg);
+}
+.composer.tx-composer textarea:focus {
+  outline: none;
+  border: none;
+}
+.composer.tx-composer textarea::placeholder {
+  color: var(--fg-placeholder);
+}
+
+/* Both states used to paint the textarea's border, which no longer exists. */
+.composer.tx-composer.is-working textarea,
+.composer.tx-composer.is-dropping textarea {
+  border: none;
+  background: none;
+}
+.tx-composer.is-dropping .tx-well {
+  border-color: var(--accent);
+  background: var(--surface-selected);
+}
+
+.tx-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+.tx-controls-gap {
+  flex: 1;
+}
+
+/* Real buttons, not a legend: each chip does the thing it names. */
+.tx-chip {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+  background: none;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r-btn);
+  padding: 3px 8px;
+  transition: border-color 160ms var(--ease-standard), color 160ms var(--ease-standard);
+}
+/* Chips start a step below the shell's outline buttons (--line-strong, per the
+   handoff's 1px #2A2136), so their hover lands on --line-btn: the same one-step
+   brighten, measured from where they start. */
+.tx-chip:hover:not(:disabled) {
+  color: var(--fg);
+  border-color: var(--line-btn);
+}
+.tx-chip:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.tx-keys {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  white-space: nowrap;
+}
+
+.tx-composer .pbtn:disabled {
+  background: var(--surface-selected);
+  color: var(--fg-hint);
+  cursor: default;
+}
+
+/* ---- warning strip ----------------------------------------------------- */
+
+/* Permission cards sit between the transcript and the composer, so they take
+   the same measure and side padding as both. styles.css still has the old 22px,
+   which left the amber card inset from everything above and below it. */
+.chat > .perm-stack {
+  padding: 0 var(--tx-pad) var(--s3);
+}
+.chat > .perm-stack > * {
+  max-width: var(--tx-measure);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.tx-warn {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: 7px var(--s5);
+  margin-bottom: var(--s4);
+  background: var(--surface-card);
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-field);
+}
+.tx-warn-text {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--attn-fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tx-warn-fix {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--attn-fg);
+  text-decoration: underline;
+  background: none;
+  border: none;
+  padding: 0;
+  transition: color 160ms var(--ease-standard);
+}
+/* Stays amber on hover and brightens within the hue: this is the "needs you"
+   affordance, and taking it to violet would read as "handled". */
+.tx-warn-fix:hover {
+  color: var(--attn);
+}
+.tx-warn-x {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-faint);
+  background: none;
+  border: none;
+  padding: 0 2px;
+  transition: color 160ms var(--ease-standard);
+}
+/* An `info` notice is not a problem, so it does not get the attention hue —
+   the palette reserves amber for "a human is needed". Errors and warnings
+   share it; only errors also take a tinted edge, since there is no red here. */
+.tx-warn.is-info .tx-warn-text {
+  color: var(--fg-dim);
+}
+.tx-warn.is-error {
+  border-color: var(--attn);
+}
+
+/* Reveals the notices behind the newest one. Without it they were unreachable:
+   the reducer keeps five and only the last was ever rendered. */
+.tx-warn-more {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  background: none;
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-btn);
+  padding: 1px 6px;
+  transition: color 160ms var(--ease-standard), border-color 160ms var(--ease-standard);
+}
+.tx-warn-more:hover {
+  color: var(--fg);
+  border-color: var(--line-btn);
+}
+
+.tx-warn-x:hover {
+  color: var(--fg);
+}
+
+/* ---- empty transcript -------------------------------------------------- */
+
+/*
+ * The first thing you see in a new session, so it states what the session
+ * actually is — cwd and model — rather than decorating the void. Sits on the
+ * same 720px measure as the turns so it does not drift out of the column the
+ * conversation will occupy.
+ */
+.tx-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  max-width: var(--tx-measure);
+  margin: 0 auto;
+  padding-top: var(--s7);
+}
+/*
+ * `.rule` is a sibling of the eyebrow here, not a child, and it carries
+ * `flex: 1` for its normal use inside a row. In this column container that
+ * grows it vertically into a large faint block, so pin it back to a divider.
+ */
+.tx-empty > .rule {
+  flex: none;
+  height: 1px;
+  align-self: stretch;
+}
+
+.tx-empty-say {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg-dim);
+  margin: 0;
+}
+/* cwd reads as a path, not as prose. */
+.tx-empty-say code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg);
+}

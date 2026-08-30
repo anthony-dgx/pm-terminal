@@ -9,6 +9,7 @@ import type {
   UsageView,
 } from '../../../shared/types.js'
 import { desk } from '../lib/api.js'
+import { fmtCost, fmtTokens, type SessionVitals } from '../lib/sessionState.js'
 import { CopyButton } from './Copy.js'
 import { McpLogin } from './McpLogin.js'
 import { ProfilesPanel } from './Profiles.js'
@@ -18,14 +19,50 @@ export type Tab = 'mcp' | 'skills' | 'profiles' | 'usage'
 /** Agents and plugins are the same question as skills: what got loaded. */
 type LoadedView = 'skills' | 'agents' | 'plugins'
 
-/** Sections in the order you most likely need to act on them. */
-const STATUS_SECTIONS: { key: McpStatus; label: string }[] = [
-  { key: 'failed', label: 'Failed' },
-  { key: 'needs-auth', label: 'Needs auth' },
-  { key: 'connected', label: 'Connected' },
-  { key: 'pending', label: 'Not started' },
-  { key: 'disabled', label: 'Disabled' },
+/**
+ * The buckets that collapse to a single row.
+ *
+ * Nothing in them needs a decision, so the panel states the count and gets out
+ * of the way; the old per-status list is still one click behind the caret.
+ */
+const QUIET_SECTIONS: { key: McpStatus; label: string; dot: string }[] = [
+  { key: 'connected', label: 'connected', dot: 'ix-dot-live' },
+  { key: 'pending', label: 'not started', dot: 'dot-idle' },
+  { key: 'disabled', label: 'disabled', dot: 'dot-done' },
 ]
+
+/** How the summary line names each bucket, in the order it reads them. */
+const COUNT_LABELS: { key: McpStatus; label: string }[] = [
+  { key: 'failed', label: 'failed' },
+  { key: 'needs-auth', label: 'need auth' },
+  { key: 'connected', label: 'connected' },
+  { key: 'pending', label: 'pending' },
+  { key: 'disabled', label: 'disabled' },
+]
+
+/** The three-color spend split, in the order the handoff assigns them. */
+const SPEND_COLORS = ['var(--accent)', 'var(--primary)', 'var(--accent-deep)']
+
+const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
+
+/**
+ * Which sessions a failed server is holding up.
+ *
+ * A blocked session only carries its own error text, so attribution is a
+ * substring match on the server's bare name (`plugin:github:github` -> `github`).
+ * When nothing matches we report how many sessions are blocked overall rather
+ * than blaming this server for them - a wrong consequence is worse than a vague
+ * one.
+ */
+function blockedBy(
+  server: string,
+  vitals: SessionVitals[],
+): { named: SessionVitals[]; total: number } {
+  const blocked = vitals.filter((v) => v.state === 'blocked')
+  const bare = server.slice(server.lastIndexOf(':') + 1).toLowerCase()
+  const named = bare ? blocked.filter((v) => v.lastLine.toLowerCase().includes(bare)) : []
+  return { named, total: blocked.length }
+}
 
 /**
  * Whether a server can be signed in to at all.
@@ -62,11 +99,14 @@ function McpPanel({
   onServers,
   clientId,
   onSignIn,
+  vitals,
 }: {
   servers: McpServerView[]
   onServers: (next: McpServerView[]) => void
   clientId: string
-  onSignIn: (name: string) => void
+  /** Starts the OAuth flow for each of these in turn. */
+  onSignIn: (names: string[]) => void
+  vitals: SessionVitals[]
 }): React.ReactElement {
   const [busy, setBusy] = useState<string | null>(null)
   const [failed, setFailed] = useState<Record<string, string>>({})
@@ -88,35 +128,48 @@ function McpPanel({
   }
 
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [closed, setClosed] = useState<Record<string, boolean>>({
-    // Servers bound to another directory are informational, so start folded.
-    other: true,
-  })
+  // Every quiet bucket starts folded: the panel is a diagnostic surface, and a
+  // healthy server has nothing to say beyond its own existence.
+  const [open, setOpen] = useState<Record<string, boolean>>({})
 
   const sorted = useMemo(
     () => [...servers].sort((a, b) => a.name.localeCompare(b.name)),
     [servers],
   )
 
-  /** One section per status, plus a trailing bucket for other directories. */
-  const sections = useMemo(() => {
+  /** Broken first and expanded, everything else bucketed and folded. */
+  const buckets = useMemo(() => {
     const active = sorted.filter((s) => s.appliesToCwd !== false)
-    const other = sorted.filter((s) => s.appliesToCwd === false)
-    const out = STATUS_SECTIONS.map(({ key, label }) => ({
-      id: key as string,
-      label,
-      status: key,
-      items: active.filter((s) => s.status === key),
-    })).filter((s) => s.items.length > 0)
-    if (other.length) {
-      out.push({ id: 'other', label: 'Other directories', status: 'pending' as McpStatus, items: other })
+    const of = (key: McpStatus): McpServerView[] => active.filter((s) => s.status === key)
+    return {
+      broken: [...of('failed'), ...of('needs-auth')],
+      failed: of('failed'),
+      needsAuth: of('needs-auth'),
+      quiet: QUIET_SECTIONS.map((sec) => ({ ...sec, items: of(sec.key) })).filter(
+        (sec) => sec.items.length > 0,
+      ),
+      other: sorted.filter((s) => s.appliesToCwd === false),
+      counts: Object.fromEntries(
+        COUNT_LABELS.map(({ key }) => [key, of(key).length]),
+      ) as Record<McpStatus, number>,
     }
-    return out
   }, [sorted])
 
-  const connected = sorted.filter((s) => s.status === 'connected').length
   const isLive = sorted.some((s) => s.origin === 'live')
-  const inactive = sorted.filter((s) => s.appliesToCwd === false).length
+  const attention = buckets.broken.length
+
+  /** `1 failed · 2 need auth · 4 connected` — counts only, never colored. */
+  const summary = COUNT_LABELS.filter(({ key }) => buckets.counts[key] > 0)
+    .map(({ key, label }) => `${buckets.counts[key]} ${label}`)
+    .join(' · ')
+
+  // Every server the Authorize button can actually start a flow for: a stdio
+  // server is a local command with no OAuth config, so it is not one of them.
+  // The label counts these, not all needs-auth servers, so it never promises
+  // more flows than it will run.
+  const authTargets = buckets.needsAuth.filter((s) => s.transport !== 'stdio')
+  const authLabel =
+    authTargets.length === 1 ? 'Authorize' : authTargets.length === 2 ? 'Authorize both' : 'Authorize all'
 
   const report = (): string =>
     sorted
@@ -127,168 +180,286 @@ function McpPanel({
       )
       .join('\n')
 
-  return (
-    <div className="panel">
-      <div className="panel-head">
-        <span>
-          {connected}/{sorted.length} connected
-        </span>
-        <span className={`origin-tag ${isLive ? 'is-live' : ''}`}>{isLive ? 'live' : 'from config'}</span>
-        <CopyButton text={report} label="Copy report" />
+  /**
+   * The full detail for one server. Unchanged from the flat list it used to
+   * live in - a broken card opens it under `Logs`, a quiet bucket opens it
+   * under its caret, and both want the same facts.
+   */
+  const detailOf = (s: McpServerView): React.ReactElement => (
+    <div className="row-detail">
+      {s.appliesToCwd === false && (
+        <p className="panel-hint">
+          Configured for a different directory, so it is not loaded in this session.
+          {s.scopeDir ? ' Switch the working directory to use it.' : ''}
+        </p>
+      )}
+      {s.url && (
+        <div className="kv">
+          <span>url</span>
+          <code>{s.url}</code>
+          <CopyButton text={s.url} />
+        </div>
+      )}
+      {s.scope && (
+        <div className="kv">
+          <span>scope</span>
+          <code>{s.scope}</code>
+        </div>
+      )}
+      {s.scopeDir && (
+        <div className="kv">
+          <span>directory</span>
+          <code title={s.scopeDir}>{s.scopeDir}</code>
+          <CopyButton text={s.scopeDir} />
+        </div>
+      )}
+      {s.serverVersion && (
+        <div className="kv">
+          <span>version</span>
+          <code>{s.serverVersion}</code>
+        </div>
+      )}
+      {s.needsAuthSince && (
+        <div className="kv">
+          <span>auth failed</span>
+          <code>{new Date(s.needsAuthSince).toLocaleString()}</code>
+        </div>
+      )}
+      {s.error && <div className="err-box">{s.error}</div>}
+      {failed[s.name] && <div className="err-box">{failed[s.name]}</div>}
+
+      <div className="row-actions">
+        <button
+          className="btn btn-sm"
+          disabled={busy === s.name || s.origin !== 'live'}
+          onClick={(e) => {
+            e.stopPropagation()
+            void reconnect(s.name)
+          }}
+          title={
+            s.origin === 'live'
+              ? `Retry the connection to ${s.name}`
+              : 'Start a session first: reconnecting needs a running agent'
+          }
+        >
+          {busy === s.name ? 'Reconnecting...' : 'Reconnect'}
+        </button>
+        {canSignIn(s) && (
+          <button
+            className="btn btn-sm btn-primary"
+            disabled={s.transport === 'stdio'}
+            onClick={(e) => {
+              e.stopPropagation()
+              onSignIn([s.name])
+            }}
+            title={
+              s.transport === 'stdio'
+                ? 'A local command server has no OAuth sign-in'
+                : `Run the OAuth sign-in for ${s.name}`
+            }
+          >
+            Sign in
+          </button>
+        )}
       </div>
 
-      {!isLive && (
+      {canSignIn(s) && s.transport !== 'stdio' && (
         <p className="panel-hint">
-          Start a session to see real connection state. Until then this is what is configured on disk plus the
-          needs-auth cache.
+          Sign in runs the OAuth flow in your browser. It clears this server's old tokens first, so
+          finish it once you start.
         </p>
       )}
-      {inactive > 0 && (
-        <p className="panel-hint">
-          {inactive} server{inactive === 1 ? '' : 's'} configured for another directory, shown dimmed.
-        </p>
+      {s.tools.length > 0 && (
+        <div className="tool-list">
+          <div className="kv">
+            <span>{s.tools.length} tools</span>
+            <CopyButton text={() => s.tools.map((t) => t.name).join('\n')} label="Copy names" />
+          </div>
+          <ul>
+            {s.tools.map((t) => (
+              <li key={t.name} title={t.description}>
+                <code>{t.name}</code>
+                {t.destructive && <span className="badge badge-failed">destructive</span>}
+                {t.readOnly && <span className="badge badge-connected">read-only</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
+    </div>
+  )
 
-      {sections.map((sec) => (
-        <div key={sec.id} className="mcp-sec">
-          <button
-            className="mcp-sec-head"
-            onClick={() => setClosed((c) => ({ ...c, [sec.id]: !c[sec.id] }))}
-          >
-            <span className="grp-caret">{closed[sec.id] ? '\u25b8' : '\u25be'}</span>
-            <span className={`dot dot-${sec.status}`} />
-            <span className="mcp-sec-label">{sec.label}</span>
-            <span className="mcp-sec-n">{sec.items.length}</span>
-            <CopyButton
-              text={() => sec.items.map((s) => s.name).join('\n')}
-              label="Copy"
-              title={`Copy the ${sec.label.toLowerCase()} server names`}
-            />
-          </button>
+  /** One server inside an opened bucket: the old row, click to expand. */
+  const serverItem = (s: McpServerView): React.ReactElement => (
+    <li key={`${s.name}@${s.scopeDir ?? s.scope ?? ''}`} className="list-item">
+      <div
+        className={`row ${s.appliesToCwd === false ? 'is-inactive' : ''}`}
+        onClick={() => setExpanded((e) => (e === s.name ? null : s.name))}
+      >
+        <span className={`dot dot-${s.status}`} />
+        <span className="row-name">{s.name}</span>
+        {s.scope && <span className={`scope-tag scope-${s.scope}`}>{s.scope}</span>}
+        <span className="row-meta">{s.transport ?? ''}</span>
+        <span className={`badge badge-${s.status}`}>{s.status}</span>
+      </div>
+      {expanded === s.name && detailOf(s)}
+    </li>
+  )
 
-          {!closed[sec.id] && (
-            <ul className="list">
-              {sec.items.map((s) => (
-                <li key={`${s.name}@${s.scopeDir ?? s.scope ?? ''}`} className="list-item">
-            <div
-              className={`row ${s.appliesToCwd === false ? 'is-inactive' : ''}`}
-              onClick={() => setExpanded((e) => (e === s.name ? null : s.name))}
-            >
-              <span className={`dot dot-${s.status}`} />
-              <span className="row-name">{s.name}</span>
-              {s.scope && <span className={`scope-tag scope-${s.scope}`}>{s.scope}</span>}
-              <span className="row-meta">{s.transport ?? ''}</span>
-              <span className={`badge badge-${s.status}`}>{s.status}</span>
+  /** Why a server is down, plus the two facts that usually explain it. */
+  const reasonOf = (s: McpServerView): string =>
+    [s.error, s.scope, s.transport].filter(Boolean).join(' · ')
+
+  return (
+    <div className="ix-mcp">
+      <div className="ix-summary">
+        <div className="ix-summary-top">
+          <span className={`eyebrow ix-summary-head ${attention ? 'is-attn' : ''}`}>
+            {attention
+              ? `${plural(attention, 'server')} need attention`
+              : buckets.counts.connected > 0
+                ? `all ${plural(buckets.counts.connected, 'server')} connected`
+                : 'nothing needs attention'}
+          </span>
+          <CopyButton text={report} label="Copy report" />
+        </div>
+        {summary && <div className="ix-summary-line">{summary}</div>}
+        {!isLive && (
+          <p className="ix-note">
+            Start a session to see real connection state. Until then this is what is configured on
+            disk plus the needs-auth cache.
+          </p>
+        )}
+      </div>
+
+      <div className="ix-cards">
+        {buckets.failed.map((s) => {
+          const { named, total } = blockedBy(s.name, vitals)
+          return (
+            <div key={s.name} className="ix-card">
+              <div className="ix-card-row">
+                <span className="dot dot-attn" />
+                <span className="ix-card-name" title={s.name}>
+                  {s.name}
+                </span>
+                <span className="ix-card-state">FAILED</span>
+              </div>
+              {reasonOf(s) && <div className="ix-card-reason">{reasonOf(s)}</div>}
+              <div className="ix-card-actions">
+                <button
+                  className="obtn"
+                  disabled={busy === s.name || s.origin !== 'live'}
+                  onClick={() => void reconnect(s.name)}
+                  title={
+                    s.origin === 'live'
+                      ? `Retry the connection to ${s.name}`
+                      : 'Start a session first: reconnecting needs a running agent'
+                  }
+                >
+                  {busy === s.name ? 'Reconnecting...' : 'Reconnect'}
+                </button>
+                <button
+                  className="obtn obtn-quiet"
+                  onClick={() => setExpanded((e) => (e === s.name ? null : s.name))}
+                  title="Show the recorded error and connection detail"
+                >
+                  Logs
+                </button>
+                {/* Only claim a session is blocked by this server when its error
+                    text actually names it; otherwise report the bare count. */}
+                {named.length > 0 ? (
+                  <span className="ix-card-note" title={named.map((v) => v.title).join('\n')}>
+                    blocks {plural(named.length, 'session')}
+                  </span>
+                ) : total > 0 ? (
+                  <span className="ix-card-note">{plural(total, 'session')} blocked</span>
+                ) : null}
+              </div>
+              {expanded === s.name && detailOf(s)}
             </div>
-            {expanded === s.name && (
-              <div className="row-detail">
-                {s.appliesToCwd === false && (
-                  <p className="panel-hint">
-                    Configured for a different directory, so it is not loaded in this session.
-                    {s.scopeDir ? ' Switch the working directory to use it.' : ''}
-                  </p>
-                )}
-                {s.url && (
-                  <div className="kv">
-                    <span>url</span>
-                    <code>{s.url}</code>
-                    <CopyButton text={s.url} />
-                  </div>
-                )}
-                {s.scope && (
-                  <div className="kv">
-                    <span>scope</span>
-                    <code>{s.scope}</code>
-                  </div>
-                )}
-                {s.scopeDir && (
-                  <div className="kv">
-                    <span>directory</span>
-                    <code title={s.scopeDir}>{s.scopeDir}</code>
-                    <CopyButton text={s.scopeDir} />
-                  </div>
-                )}
-                {s.serverVersion && (
-                  <div className="kv">
-                    <span>version</span>
-                    <code>{s.serverVersion}</code>
-                  </div>
-                )}
-                {s.needsAuthSince && (
-                  <div className="kv">
-                    <span>auth failed</span>
-                    <code>{new Date(s.needsAuthSince).toLocaleString()}</code>
-                  </div>
-                )}
-                {s.error && <div className="err-box">{s.error}</div>}
-                {failed[s.name] && <div className="err-box">{failed[s.name]}</div>}
+          )
+        })}
 
-                <div className="row-actions">
-                  <button
-                    className="btn btn-sm"
-                    disabled={busy === s.name || s.origin !== 'live'}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      void reconnect(s.name)
-                    }}
-                    title={
-                      s.origin === 'live'
-                        ? `Retry the connection to ${s.name}`
-                        : 'Start a session first: reconnecting needs a running agent'
-                    }
-                  >
-                    {busy === s.name ? 'Reconnecting...' : 'Reconnect'}
-                  </button>
-                  {canSignIn(s) && (
-                    <button
-                      className="btn btn-sm btn-primary"
-                      disabled={s.transport === 'stdio'}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onSignIn(s.name)
-                      }}
-                      title={
-                        s.transport === 'stdio'
-                          ? 'A local command server has no OAuth sign-in'
-                          : `Run the OAuth sign-in for ${s.name}`
-                      }
-                    >
-                      Sign in
-                    </button>
-                  )}
-                </div>
+        {buckets.needsAuth.length > 0 && (
+          // One card for all of them: the answer is the same sign-in either way.
+          <div className="ix-card">
+            {buckets.needsAuth.map((s) => (
+              <div
+                key={s.name}
+                className="ix-card-row"
+                onClick={() => setExpanded((e) => (e === s.name ? null : s.name))}
+              >
+                <span className="dot dot-attn" />
+                <span className="ix-card-name" title={s.name}>
+                  {s.name}
+                </span>
+                <span className="ix-card-state">NEEDS AUTH</span>
+              </div>
+            ))}
+            <div className="ix-card-actions">
+              <button
+                className="obtn"
+                disabled={!authTargets.length}
+                onClick={() => authTargets.length && onSignIn(authTargets.map((s) => s.name))}
+                title={
+                  authTargets.length
+                    ? authTargets.length > 1
+                      ? `Runs the OAuth flow for each in turn: ${authTargets.map((s) => s.name).join(', ')}`
+                      : `Run the OAuth sign-in for ${authTargets[0].name}`
+                    : 'A local command server has no OAuth sign-in'
+                }
+              >
+                {authLabel}
+              </button>
+              <span className="ix-card-note">
+                {[buckets.needsAuth[0].scope, buckets.needsAuth[0].transport]
+                  .filter(Boolean)
+                  .join(' · ')}
+              </span>
+            </div>
+            {buckets.needsAuth.map((s) =>
+              expanded === s.name ? <div key={`${s.name}-detail`}>{detailOf(s)}</div> : null,
+            )}
+          </div>
+        )}
 
-                {canSignIn(s) && s.transport !== 'stdio' && (
-                  <p className="panel-hint">
-                    Sign in runs the OAuth flow in your browser. It clears this server's old tokens
-                    first, so finish it once you start.
-                  </p>
-                )}
-                {s.tools.length > 0 && (
-                  <div className="tool-list">
-                    <div className="kv">
-                      <span>{s.tools.length} tools</span>
-                      <CopyButton text={() => s.tools.map((t) => t.name).join('\n')} label="Copy names" />
-                    </div>
-                    <ul>
-                      {s.tools.map((t) => (
-                        <li key={t.name} title={t.description}>
-                          <code>{t.name}</code>
-                          {t.destructive && <span className="badge badge-failed">destructive</span>}
-                          {t.readOnly && <span className="badge badge-connected">read-only</span>}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+        {buckets.quiet.map((sec) => (
+          <div key={sec.key} className="ix-group">
+            <button className="ix-group-head" onClick={() => setOpen((o) => ({ ...o, [sec.key]: !o[sec.key] }))}>
+              <span className={`dot ${sec.dot}`} />
+              <span className="ix-group-label">
+                {sec.items.length} {sec.label}
+              </span>
+              <span className="ix-group-detail">{sec.items.map((s) => s.name).join(', ')}</span>
+              <span className="ix-caret">{open[sec.key] ? '▴' : '▾'}</span>
+            </button>
+            {open[sec.key] && (
+              <div className="ix-group-body">
+                <ul className="list">{sec.items.map(serverItem)}</ul>
               </div>
             )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ))}
+          </div>
+        ))}
+
+        {buckets.other.length > 0 && (
+          <div className="ix-group is-quiet">
+            <button className="ix-group-head" onClick={() => setOpen((o) => ({ ...o, other: !o.other }))}>
+              <span className="ix-group-label">
+                {buckets.other.length} configured for other directories
+              </span>
+              <span className="ix-group-detail" />
+              <span className="ix-caret">{open.other ? '▴' : '▾'}</span>
+            </button>
+            {open.other && (
+              <div className="ix-group-body">
+                <ul className="list">{buckets.other.map(serverItem)}</ul>
+              </div>
+            )}
+          </div>
+        )}
+
+        {sorted.length === 0 && <p className="ix-note">No MCP servers configured.</p>}
+      </div>
     </div>
   )
 }
@@ -438,13 +609,6 @@ function PluginsPanel({ plugins }: { plugins: PluginView[] }): React.ReactElemen
   )
 }
 
-/** Uncached input is often only a few hundred tokens, so "0.0k" would hide it. */
-function fmtTokens(n: number): string {
-  if (n < 1000) return String(n)
-  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`
-  return `${(n / 1_000_000).toFixed(2)}M`
-}
-
 function UsagePanel({
   usage,
   context,
@@ -533,6 +697,9 @@ export function Inspector({
   onClose,
   focus,
   busy = 0,
+  vitals,
+  spend,
+  sessionLabel,
 }: {
   clientId: string
   /** The session's directory, needed to list skills before a session exists. */
@@ -541,6 +708,12 @@ export function Inspector({
   profilesKey: number
   onProfilesChanged: () => void
   onClose: () => void
+  /** Live status for every open conversation, for blocked-session attribution. */
+  vitals: SessionVitals[]
+  /** Today's spend, already aggregated across sessions. */
+  spend: { tokens: number; cost: number; byModel: { model: string; tokens: number; cost: number }[] }
+  /** Short name of the session on screen, for the CONTEXT heading. */
+  sessionLabel: string
   /**
    * Ask for a tab from outside. The nonce is what makes it work twice: typing
    * `/mcp` again after clicking away to Skills has to bring MCP back, and a bare
@@ -551,7 +724,14 @@ export function Inspector({
   busy?: number
 }): React.ReactElement {
   const [tab, setTab] = useState<Tab>('mcp')
-  const [signingIn, setSigningIn] = useState<string | null>(null)
+  /**
+   * Servers still to be signed in, current one first. A queue rather than a
+   * single name because "Authorize both"/"Authorize all" promises a batch: it
+   * used to start the flow for one server and silently stop, while the label
+   * and tooltip claimed the rest would follow.
+   */
+  const [authQueue, setAuthQueue] = useState<string[]>([])
+  const signingIn = authQueue[0] ?? null
   const [loadedView, setLoadedView] = useState<LoadedView>('skills')
   const [mcp, setMcp] = useState<McpServerView[]>([])
   const [skills, setSkills] = useState<SkillView[]>([])
@@ -559,6 +739,10 @@ export function Inspector({
   const [plugins, setPlugins] = useState<PluginView[]>([])
   const [usage, setUsage] = useState<UsageView | null>(null)
   const [context, setContext] = useState<ContextUsageView | null>(null)
+  /** True while a context clear is in flight, so the button cannot be double-fired. */
+  const [clearing, setClearing] = useState(false)
+  /** Bumped after a clear, to re-read the context meter against the new window. */
+  const [ctxNonce, setCtxNonce] = useState(0)
 
   const refresh = useCallback(async () => {
     const [m, s, a, p, u, c] = await Promise.all([
@@ -579,7 +763,7 @@ export function Inspector({
 
   useEffect(() => {
     void refresh()
-  }, [refresh, refreshKey])
+  }, [refresh, refreshKey, ctxNonce])
 
   useEffect(() => {
     if (focus) setTab(focus.tab)
@@ -601,6 +785,9 @@ export function Inspector({
           // picks up the status change.
         }
       }
+      // Advance the queue: if the user asked for several, the next flow opens
+      // as soon as this one lands.
+      setAuthQueue((q) => q.slice(1))
       await refresh()
     })()
   }, [signingIn, clientId, refresh])
@@ -608,24 +795,49 @@ export function Inspector({
   const connected = mcp.filter((s) => s.status === 'connected').length
   const problems = mcp.filter((s) => s.status === 'failed' || s.status === 'needs-auth').length
 
+  /** Context readout for the footer. Only drawn when the window size is known. */
+  const ctxPct =
+    context?.contextWindow && context.contextWindow > 0
+      ? Math.min(100, Math.round((context.totalTokens / context.contextWindow) * 100))
+      : null
+
+  const models = spend.byModel.filter((m) => m.cost > 0 || m.tokens > 0)
+  const splitTotal = models.reduce((n, m) => n + m.cost, 0)
+
   return (
-    <aside className="inspector">
-      <nav className="tabs">
-        <button className={tab === 'mcp' ? 'is-on' : ''} onClick={() => setTab('mcp')}>
+    <aside className="inspector ix-inspector">
+      <nav className="tabs ix-tabs">
+        <button
+          className={`ix-tab ${tab === 'mcp' ? 'is-on' : ''}`}
+          onClick={() => setTab('mcp')}
+        >
+          {/* The dot is the whole point of the tab: it is the only place the
+              panel shouts before you have opened it. */}
+          {problems > 0 && <span className="dot dot-attn ix-tab-dot" />}
           MCP
           <span className={`tab-n ${problems ? 'is-warn' : ''}`}>
             {connected}/{mcp.length}
           </span>
         </button>
-        <button className={tab === 'skills' ? 'is-on' : ''} onClick={() => setTab('skills')}>
+        <button
+          className={`ix-tab ${tab === 'skills' ? 'is-on' : ''}`}
+          onClick={() => setTab('skills')}
+        >
           Skills <span className="tab-n">{skills.length}</span>
         </button>
-        <button className={tab === 'profiles' ? 'is-on' : ''} onClick={() => setTab('profiles')}>
+        <button
+          className={`ix-tab ${tab === 'profiles' ? 'is-on' : ''}`}
+          onClick={() => setTab('profiles')}
+        >
           Profiles
         </button>
-        <button className={tab === 'usage' ? 'is-on' : ''} onClick={() => setTab('usage')}>
+        <button
+          className={`ix-tab ${tab === 'usage' ? 'is-on' : ''}`}
+          onClick={() => setTab('usage')}
+        >
           Usage
         </button>
+        <span className="ix-tab-spacer" />
         <button
           className="refresh"
           // Clear the cached pre-session lookup first, so this re-asks the CLI
@@ -665,7 +877,13 @@ export function Inspector({
 
       <div className="inspector-body">
         {tab === 'mcp' && (
-          <McpPanel servers={mcp} onServers={setMcp} clientId={clientId} onSignIn={setSigningIn} />
+          <McpPanel
+            servers={mcp}
+            onServers={setMcp}
+            clientId={clientId}
+            onSignIn={(names) => setAuthQueue(names)}
+            vitals={vitals}
+          />
         )}
         {tab === 'skills' && loadedView === 'skills' && <SkillsPanel skills={skills} />}
         {tab === 'skills' && loadedView === 'agents' && <AgentsPanel agents={agents} />}
@@ -673,6 +891,90 @@ export function Inspector({
         {tab === 'profiles' && <ProfilesPanel refreshKey={profilesKey} onChanged={onProfilesChanged} />}
         {tab === 'usage' && <UsagePanel usage={usage} context={context} />}
       </div>
+
+      {/* Spend and context are footers, not a tab: they answer questions you
+          have while reading the transcript, whichever tab is open. Nothing is
+          drawn until there is a real figure behind it. */}
+      {models.length > 0 && splitTotal > 0 && (
+        <div className="ix-spend">
+          <div className="ix-foot-head">
+            <span className="eyebrow">Spend · today</span>
+            <span className="rule-spacer" />
+            <span className="ix-spend-tokens">{fmtTokens(spend.tokens)} tok</span>
+            <span className="ix-spend-total">{fmtCost(spend.cost)}</span>
+          </div>
+          {/* The split between models is the story here, not a time series. */}
+          <div className="ix-split">
+            {models.map((m, i) => (
+              <span
+                key={m.model}
+                style={{
+                  width: `${(m.cost / splitTotal) * 100}%`,
+                  background: SPEND_COLORS[i % SPEND_COLORS.length],
+                }}
+              />
+            ))}
+          </div>
+          <div className="ix-spend-rows">
+            {models.map((m, i) => (
+              <div key={m.model} className="ix-spend-row">
+                <span
+                  className="ix-swatch"
+                  style={{ background: SPEND_COLORS[i % SPEND_COLORS.length] }}
+                />
+                <span className="ix-spend-model" title={m.model}>
+                  {m.model}
+                </span>
+                <span className="ix-spend-tok">{fmtTokens(m.tokens)}</span>
+                <span className="ix-spend-cost">{fmtCost(m.cost)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {context && ctxPct !== null && (
+        <div className="ix-context">
+          <div className="ix-foot-head">
+            <span className="eyebrow ix-context-head">Context · {sessionLabel}</span>
+            <span className="rule-spacer" />
+            <span className="ix-context-pct">{ctxPct}%</span>
+          </div>
+          <span className="ix-ctx-track">
+            <span style={{ width: `${ctxPct}%` }} />
+          </span>
+          <div className="ix-context-foot">
+            <span className="ix-context-tokens">
+              {fmtTokens(context.totalTokens)} of {fmtTokens(context.contextWindow ?? 0)} tokens
+            </span>
+            {/*
+              Confirmed before acting: the transcript survives, but whatever the
+              agent was still carrying does not, and that is not recoverable.
+              Saying so plainly is cheaper than an undo nobody can offer.
+            */}
+            <button
+              className="obtn"
+              disabled={clearing}
+              title="Start a fresh context window, keeping this session"
+              onClick={() => {
+                const ok = window.confirm(
+                  'Start a fresh context window for this session?\n\n' +
+                    'The agent forgets everything so far. The transcript stays, ' +
+                    'and the directory, model and profile are kept.',
+                )
+                if (!ok) return
+                setClearing(true)
+                void desk
+                  .clearContext(clientId)
+                  .finally(() => setClearing(false))
+                  .then(() => setCtxNonce((n) => n + 1))
+              }}
+            >
+              {clearing ? 'Clearing…' : 'Clear context'}
+            </button>
+          </div>
+        </div>
+      )}
 
       <UpdateRow busy={busy} />
 
@@ -684,7 +986,8 @@ export function Inspector({
           confirmFirst={signInIsDestructive(
             mcp.find((s) => s.name === signingIn) ?? ({ status: 'pending' } as McpServerView),
           )}
-          onClose={() => setSigningIn(null)}
+          // Cancelling abandons the whole batch, not just this one server.
+          onClose={() => setAuthQueue([])}
           onAuthenticated={onAuthenticated}
         />
       )}

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { HistoryEntry } from '../../../shared/types.js'
 import { desk } from '../lib/api.js'
+import { STATE_LABEL, type SessionState } from '../lib/sessionState.js'
 
 /**
  * Deeper than the sidebar's 120. This is the "find any session" surface, so a
@@ -23,11 +24,28 @@ export interface SwitcherItem {
   /** Null for a conversation that has not started, so has no session yet. */
   sessionId: string | null
   open: boolean
+  /**
+   * Status of an open conversation. Absent for a recorded session: a transcript
+   * on disk is not in any state, it is just a transcript.
+   */
+  state?: SessionState
   /** Open and holding an answer nobody has read. Never true for a recorded one. */
   unread?: boolean
   /** Sort key within a section. */
   at: number
   entry: HistoryEntry | null
+}
+
+/** Stopped on a person, either by asking or by failing. */
+function needsAttention(item: SwitcherItem): boolean {
+  return item.state === 'needs_you' || item.state === 'blocked'
+}
+
+/** The dot classes are shared with the session rows, so the two agree on colour. */
+function dotClass(item: SwitcherItem): string {
+  if (needsAttention(item)) return 'dot-attn'
+  if (item.state === 'running') return 'dot-running'
+  return 'dot-done'
 }
 
 /**
@@ -115,6 +133,38 @@ export function Switcher({ openItems, onPick, onClose, home }: Props): React.Rea
       .map((x) => x.item)
   }, [items, query])
 
+  /**
+   * Anything waiting on a person goes first, whatever the query scored it.
+   *
+   * The handoff's palette leads with a NEEDS ATTENTION section, and the same
+   * rule the session column follows applies here: a session that has stopped on
+   * you is the one you were looking for more often than not. A stable sort, so
+   * relevance still decides the order inside each section.
+   */
+  const ordered = useMemo(
+    () => [...results].sort((a, b) => Number(needsAttention(b)) - Number(needsAttention(a))),
+    [results],
+  )
+
+  /**
+   * The rows to draw, each carrying the section header that precedes it — a
+   * header only where the section changes, so the flat index the keyboard moves
+   * through still lines up with what is on screen.
+   */
+  const rows = useMemo(() => {
+    let previous = ''
+    return ordered.map((item) => {
+      const section = needsAttention(item)
+        ? 'NEEDS ATTENTION'
+        : query.trim()
+          ? 'SESSIONS'
+          : 'RECENT'
+      const head = section === previous ? null : section
+      previous = section
+      return { item, head }
+    })
+  }, [ordered, query])
+
   // A query change reshuffles the list, so an old index would point at
   // whatever happens to sit there now.
   useEffect(() => {
@@ -123,7 +173,7 @@ export function Switcher({ openItems, onPick, onClose, home }: Props): React.Rea
 
   useEffect(() => {
     listRef.current?.querySelector('.switch-item.is-on')?.scrollIntoView({ block: 'nearest' })
-  }, [active, results])
+  }, [active, rows])
 
   const onKey = useCallback(
     (e: React.KeyboardEvent) => {
@@ -134,21 +184,21 @@ export function Switcher({ openItems, onPick, onClose, home }: Props): React.Rea
       }
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setActive((i) => (results.length ? (i + 1) % results.length : 0))
+        setActive((i) => (ordered.length ? (i + 1) % ordered.length : 0))
         return
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setActive((i) => (results.length ? (i - 1 + results.length) % results.length : 0))
+        setActive((i) => (ordered.length ? (i - 1 + ordered.length) % ordered.length : 0))
         return
       }
       if (e.key === 'Enter') {
         e.preventDefault()
-        const pick = results[active]
+        const pick = ordered[active]
         if (pick) onPick(pick)
       }
     },
-    [results, active, onPick, onClose],
+    [ordered, active, onPick, onClose],
   )
 
   const shorten = (cwd: string): string => (cwd.startsWith(home) ? `~${cwd.slice(home.length)}` : cwd)
@@ -168,30 +218,46 @@ export function Switcher({ openItems, onPick, onClose, home }: Props): React.Rea
         />
 
         <div className="switch-list" ref={listRef}>
-          {results.map((item, i) => (
-            <button
-              key={item.key}
-              className={`switch-item ${i === active ? 'is-on' : ''}`}
-              // Enter is the real path; the mouse just needs to agree with it.
-              onMouseMove={() => setActive(i)}
-              onClick={() => onPick(item)}
-            >
-              <span className="switch-title">
-                {/* Its own element so it can ellipsise. A bare text node in a
-                    flex row is an anonymous item that text-overflow cannot
-                    reach, which is what broke the titlebar pickers. */}
-                <span className="switch-name">{item.title}</span>
-                {item.open && <span className="switch-badge">open</span>}
-                {item.unread && (
-                  <span className="switch-badge is-unread" title="Answered while you were elsewhere">
-                    new
-                  </span>
-                )}
-              </span>
-              <span className="switch-cwd">{shorten(item.cwd)}</span>
-            </button>
+          {rows.map(({ item, head }, i) => (
+            <Fragment key={item.key}>
+              {head && <div className="switch-sec">{head}</div>}
+              <button
+                className={`switch-item ${i === active ? 'is-on' : ''}`}
+                // Enter is the real path; the mouse just needs to agree with it.
+                onMouseMove={() => setActive(i)}
+                onClick={() => onPick(item)}
+              >
+                <span className="switch-title">
+                  <span className={`dot ${dotClass(item)}`} />
+                  {/* Its own element so it can ellipsise. A bare text node in a
+                      flex row is an anonymous item that text-overflow cannot
+                      reach, which is what broke the titlebar pickers. */}
+                  <span className="switch-name">{item.title}</span>
+                  {/* The consequence, named inline: on an attention row that is
+                      why it stopped, not merely that it is open. */}
+                  {item.state && needsAttention(item) ? (
+                    <span className="switch-badge is-unread">
+                      {STATE_LABEL[item.state].toLowerCase()}
+                    </span>
+                  ) : (
+                    <>
+                      {/* `open` and `new` are independent facts — an open
+                          session can also have an unread answer. Chaining them
+                          into one else-if hid `open` on exactly those rows. */}
+                      {item.unread && (
+                        <span className="switch-badge is-unread" title="Answered while you were elsewhere">
+                          new
+                        </span>
+                      )}
+                      {item.open && <span className="switch-badge">open</span>}
+                    </>
+                  )}
+                </span>
+                <span className="switch-cwd">{shorten(item.cwd)}</span>
+              </button>
+            </Fragment>
           ))}
-          {!results.length && (
+          {!rows.length && (
             <p className="switch-empty">{history === null ? 'Loading sessions...' : 'Nothing matches.'}</p>
           )}
         </div>
@@ -203,7 +269,11 @@ export function Switcher({ openItems, onPick, onClose, home }: Props): React.Rea
             {history === null ? 'Loading...' : `${items.length} session${items.length === 1 ? '' : 's'}`}
             {history?.length === LIMIT && ` (most recent ${LIMIT})`}
           </span>
-          <span>↑↓ move · ↵ open · esc close</span>
+          <span className="switch-keys">
+            <span className="keyhint">↑↓ move</span>
+            <span className="keyhint">⏎ run</span>
+            <span className="keyhint">esc to close</span>
+          </span>
         </div>
       </div>
     </div>

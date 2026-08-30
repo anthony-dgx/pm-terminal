@@ -31,6 +31,12 @@ export interface DeskApi {
   }): Promise<SessionInfo | null>
   send(clientId: string, text: string, images?: Attachment[]): Promise<void>
   interrupt(clientId: string): Promise<void>
+  /**
+   * Start a fresh context window for this conversation, keeping its directory,
+   * model and profile. The transcript and the record on disk are untouched -
+   * this clears what the model is carrying, not what you can read.
+   */
+  clearContext(clientId: string): Promise<SessionInfo | null>
   sessionInfo(clientId: string): Promise<SessionInfo | null>
   sessionTurns(clientId: string): Promise<Turn[]>
   answerPermission(clientId: string, id: string, answer: PermissionAnswer): Promise<void>
@@ -117,6 +123,7 @@ export interface DeskApi {
 
 const api: DeskApi = {
   startSession: (clientId, opts) => ipcRenderer.invoke('session:start', clientId, opts),
+  clearContext: (clientId) => ipcRenderer.invoke('session:clear', clientId),
   send: (clientId, text, images) => ipcRenderer.invoke('session:send', clientId, text, images),
   interrupt: (clientId) => ipcRenderer.invoke('session:interrupt', clientId),
   sessionInfo: (clientId) => ipcRenderer.invoke('session:info', clientId),

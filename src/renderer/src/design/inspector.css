@@ -1,0 +1,453 @@
+/*
+ * Inspector — the diagnostic column.
+ *
+ * The panel's job changed with the shell redesign: it is no longer an even list
+ * of every MCP server, it is a surface that only speaks up when something is
+ * broken. Failures render expanded with a recovery action; everything healthy
+ * folds into a single row you can open if you are curious.
+ *
+ * Everything here is written against the semantic tokens in tokens.css, so a
+ * theme swap carries the panel with it. Selectors that override a rule already
+ * in styles.css are compounded (.inspector.ix-inspector) so they win on
+ * specificity rather than on import order.
+ *
+ * Two hues plus neutrals: violet = live, amber = a human is needed, grey = the
+ * rest. No green, no red.
+ */
+
+.inspector.ix-inspector {
+  width: 352px;
+  background: var(--surface-chrome);
+  border-left: 1px solid var(--line-mid);
+}
+
+/* ---- tab strip ---- */
+
+/*
+ * Four tabs plus two icon buttons do not fit 352px on one line: the row needs
+ * ~393px, so `nowrap` pushed ↻ and › past the window's right edge at every
+ * window size — and ↻ ("re-read everything", which is how a newly installed
+ * plugin shows up without a restart) has no other trigger. The original strip
+ * wrapped, which is what protected it. Wrap again as the safety net, and tighten
+ * the padding so the common case still lands on one line.
+ */
+.tabs.ix-tabs {
+  gap: 2px;
+  padding: var(--s4) var(--s3);
+  border-bottom: 1px solid var(--line-soft);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tabs.ix-tabs button.ix-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--fg-hint);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  padding: 5px 5px;
+  transition: color 160ms var(--ease-standard), background 160ms var(--ease-standard),
+    border-color 160ms var(--ease-standard);
+}
+/* An inactive tab hovers one surface step off the chrome; the active tab is
+   already sitting on --surface-selected, so it has nowhere to go and keeps its
+   own fill rather than jumping again. */
+.tabs.ix-tabs button.ix-tab:hover {
+  color: var(--fg-dim);
+}
+.tabs.ix-tabs button.ix-tab:not(.is-on):hover {
+  background: var(--surface-card);
+}
+.tabs.ix-tabs button.ix-tab.is-on {
+  color: var(--fg);
+  background: var(--surface-selected);
+  border-color: var(--line-strong);
+}
+
+/* The count is data, so it stays quiet next to its label. */
+.tabs.ix-tabs .tab-n {
+  font-family: var(--mono);
+  font-size: 12px;
+  margin-left: 0;
+  color: var(--fg-hint);
+}
+.tabs.ix-tabs .ix-tab.is-on .tab-n {
+  color: var(--fg-hint);
+}
+.tabs.ix-tabs .tab-n.is-warn {
+  color: var(--fg-hint);
+}
+.tabs.ix-tabs .ix-tab:not(.is-on) .tab-n {
+  color: var(--fg-dim);
+}
+
+/* 6px rather than the shared 7px: the tab dot sits inside a chip. */
+.ix-tab-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.ix-tab-spacer {
+  flex: 1;
+}
+
+.tabs.ix-tabs button.refresh,
+.tabs.ix-tabs button.tab-close {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-hint);
+  margin-left: 0;
+  padding: 2px 4px;
+  transition: color 160ms var(--ease-standard);
+}
+.tabs.ix-tabs button.refresh:hover,
+.tabs.ix-tabs button.tab-close:hover {
+  color: var(--fg);
+}
+
+/* ---- summary ---- */
+
+.ix-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s6) var(--s6) var(--s4);
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.ix-summary-top {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+}
+
+/* Bigger and wider-tracked than a normal eyebrow: it is the panel's headline. */
+.ix-summary-head {
+  font-size: 11px;
+  letter-spacing: 0.11em;
+  flex: 1;
+  min-width: 0;
+}
+.ix-summary-head.is-attn {
+  color: var(--attn-fg);
+}
+
+.ix-summary-line {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-hint);
+}
+
+.ix-note {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-hint);
+  margin: 0;
+}
+
+/* ---- broken servers, expanded ---- */
+
+.ix-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5) var(--s6);
+}
+
+.ix-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  background: var(--surface-card);
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-row);
+  padding: 11px var(--s5);
+  transition: background 160ms var(--ease-standard), border-color 160ms var(--ease-standard);
+}
+/*
+ * A card is hoverable because its header row toggles it open, so it takes the
+ * shell's one-surface-step lighten (card -> selected), same as a session row.
+ * Border follows one step too, which keeps the card's edge from disappearing
+ * into the lighter fill. Deliberately not a violet or amber tint: hover is not
+ * a state, it is only "the pointer is here".
+ */
+.ix-card:hover {
+  background: var(--surface-selected);
+  border-color: var(--line-strong);
+}
+
+.ix-card-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+}
+
+.ix-card-name {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ix-card-state {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--attn-fg);
+  letter-spacing: 0.06em;
+  flex: none;
+}
+
+.ix-card-reason {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-dim);
+  overflow-wrap: anywhere;
+}
+
+.ix-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* The consequence of the failure, right-aligned so it reads as a footnote. */
+.ix-card-note {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-hint);
+  text-align: right;
+}
+
+/* ---- healthy servers, collapsed to one row ---- */
+
+.ix-group {
+  border: 1px solid var(--line-mid);
+  border-radius: var(--r-row);
+  overflow: hidden;
+}
+.ix-group.is-quiet {
+  border-color: var(--line-soft);
+}
+
+.ix-group-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 11px var(--s5);
+  background: none;
+  border: none;
+  text-align: left;
+  transition: background 160ms var(--ease-standard);
+}
+/*
+ * One step, measured from where this row actually starts: a collapsed group has
+ * no fill of its own, so it sits on the chrome and lifts to --surface-card. It
+ * used to jump straight to --surface-selected, which is two steps and made a
+ * hovered healthy group look more selected than the selected session row.
+ */
+.ix-group-head:hover {
+  background: var(--surface-card);
+}
+
+.ix-group-label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-dim);
+  flex: none;
+}
+.ix-group.is-quiet .ix-group-label {
+  color: var(--fg-hint);
+}
+
+.ix-group-detail {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-hint);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.ix-caret {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  flex: none;
+}
+
+.ix-group-body {
+  border-top: 1px solid var(--line-soft);
+  padding: var(--s2) var(--s5) var(--s4);
+}
+
+/* Live, but not pulsing: a connected server is a fact, not an activity. */
+.ix-dot-live {
+  background: var(--accent);
+}
+
+/* ---- footer: today's spend, split by model ---- */
+
+.ix-spend {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px var(--s6);
+  border-top: 1px solid var(--line-soft);
+}
+
+.ix-foot-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+.ix-foot-head .rule-spacer {
+  flex: 1;
+}
+
+.ix-spend-tokens {
+  color: var(--fg-faint);
+}
+.ix-spend-total {
+  font-weight: 500;
+  color: var(--fg);
+}
+
+/* The chart is the split between models, deliberately not a time series. */
+.ix-split {
+  display: flex;
+  gap: 2px;
+  height: 4px;
+}
+.ix-split > span {
+  border-radius: 1px;
+  min-width: 1px;
+}
+
+.ix-spend-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.ix-spend-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.ix-swatch {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.ix-spend-model {
+  color: var(--fg-body);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ix-spend-tok {
+  color: var(--fg-faint);
+}
+.ix-spend-cost {
+  color: var(--fg-dim);
+  width: 40px;
+  text-align: right;
+}
+
+/* ---- footer: context for the session on screen ---- */
+
+.ix-context {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: var(--s6);
+  border-top: 1px solid var(--line-soft);
+}
+
+/* One line, always. The session name is whatever the user's first prompt was,
+   so it can be arbitrarily long; wrapping it pushes the percentage off its
+   baseline and turns a one-line readout into a paragraph. */
+.ix-context-head {
+  color: var(--fg-faint);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ix-context-pct {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-dim);
+  /* The figure is the point of the row; the name yields to it, not the reverse. */
+  flex: none;
+}
+
+/* Taller than the shared .track: this one is read, not glanced at. */
+.ix-ctx-track {
+  display: block;
+  height: 5px;
+  border-radius: 2px;
+  background: var(--line-mid);
+  overflow: hidden;
+}
+.ix-ctx-track > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 240ms var(--ease-standard);
+}
+
+.ix-context-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.ix-context-tokens {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-faint);
+  flex: 1;
+  min-width: 0;
+}
+
+/* `.obtn:hover` in tokens.css has no :disabled guard, so a dead Clear context
+   button would still brighten under the pointer. Pin both states. */
+.ix-context-foot .obtn:disabled,
+.ix-context-foot .obtn:disabled:hover {
+  color: var(--fg-hint);
+  border-color: var(--line-strong);
+  cursor: default;
+}

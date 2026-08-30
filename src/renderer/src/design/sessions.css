@@ -1,0 +1,353 @@
+/*
+ * Session list — Screen 1b, left column.
+ *
+ * The list's job changed: it is a status board you scan, not a menu you click
+ * through. Rows lead with what the agent is doing and whether it wants you, so
+ * everything here is sized for scanning a column of live status lines.
+ *
+ * Written entirely against the semantic tokens in tokens.css so a theme swap
+ * carries the chrome with it. Prefixed `sx-` because the old `.hist` / `.grp-`
+ * rules in styles.css still dress the user-defined groups.
+ */
+
+.sx-sidebar {
+  background: var(--surface-chrome);
+}
+
+/* Rows carry their own 8px side margin, per the spec, so the scroller adds none. */
+.sx-sidebar .sidebar-list {
+  padding: 0 0 var(--s4);
+}
+
+/* ---- header: search + new ---- */
+
+.sx-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s5) var(--s5) var(--s4);
+}
+
+.sx-search {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 7px var(--s4);
+  border-radius: var(--r-field);
+  background: var(--surface-card);
+  border: 1px solid var(--line-strong);
+  transition: border-color 160ms var(--ease-standard);
+}
+/* Hovering the field brightens its border the way an outline button's does;
+   focus is still the violet, so the two states stay distinguishable. */
+.sx-search:hover {
+  border-color: var(--line-btn);
+}
+.sx-search:focus-within,
+.sx-search:focus-within:hover {
+  border-color: var(--accent);
+}
+
+.sx-slash {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-faint);
+  flex: none;
+}
+
+.sx-search-input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--fg);
+}
+.sx-search-input::placeholder {
+  color: var(--fg-hint);
+}
+.sx-search-input:focus {
+  outline: none;
+}
+
+/* The one filled action in the column. */
+.sx-new {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1;
+  color: #fff;
+  background: var(--primary);
+  border: none;
+  border-radius: var(--r-field);
+  padding: 7px 11px;
+  cursor: pointer;
+  transition: background 160ms var(--ease-standard);
+}
+.sx-new:hover {
+  background: var(--primary-hover);
+}
+
+/*
+ * Group / refresh / hide sit on their own quiet row rather than in the header:
+ * the redesign's header is a search field and one primary action, and crowding
+ * three more glyphs in there is exactly the competing chrome it removes.
+ */
+.sx-tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 0 var(--s5) var(--s3);
+}
+.sx-tool {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--fg-hint);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  padding: 4px 7px;
+  cursor: pointer;
+  transition: color 160ms var(--ease-standard), background 160ms var(--ease-standard);
+}
+.sx-tool:hover:not(:disabled) {
+  color: var(--fg-dim);
+  background: var(--surface-card);
+}
+.sx-tool:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.sx-tool-end {
+  margin-left: auto;
+}
+
+/* ---- group headers ---- */
+
+.sx-sec {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  width: 100%;
+  padding: var(--s3) var(--s6) var(--s2);
+  background: none;
+  border: none;
+  text-align: left;
+}
+/* Only the collapsible time buckets are buttons; live sections are not, which is
+   why the hover below is scoped to `button.sx-sec`: a plain header must not
+   pretend to be clickable. A header has no surface of its own, so it hovers by
+   lifting its own type one rung rather than by painting a background. */
+button.sx-sec {
+  cursor: pointer;
+  transition: color 160ms var(--ease-standard);
+}
+button.sx-sec:hover .eyebrow,
+button.sx-sec:hover .sx-sec-n,
+button.sx-sec:hover .sx-sec-caret {
+  color: var(--fg-dim);
+}
+.sx-sec .eyebrow,
+.sx-sec-n,
+.sx-sec-caret {
+  transition: color 160ms var(--ease-standard);
+}
+.sx-sec-n {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-hint);
+}
+.sx-sec-caret {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--fg-hint);
+  flex: none;
+}
+
+/* ---- rows ---- */
+
+.sx-row {
+  margin: 0 var(--s3) var(--s2);
+  padding: 11px var(--s5);
+  border-radius: var(--r-row);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  cursor: pointer;
+  background: transparent;
+  transition: background 160ms var(--ease-standard);
+}
+/* Hover lifts a row exactly one surface step; selection is the step above. */
+.sx-row:hover {
+  background: var(--surface-card);
+}
+.sx-row.is-selected,
+.sx-row.is-selected:hover {
+  background: var(--surface-selected);
+}
+
+.sx-row-top {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.sx-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--fg-body);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sx-row.is-selected .sx-title {
+  color: var(--fg);
+  font-weight: 500;
+}
+
+.sx-elapsed {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-hint);
+}
+
+/* The live line. Amber only ever means a human is needed. */
+.sx-live {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sx-live.is-attn {
+  color: var(--attn-fg);
+}
+
+.sx-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--fg-dim);
+  min-width: 0;
+}
+.sx-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sx-tok {
+  flex: none;
+  margin-left: auto;
+}
+
+/*
+ * A finished session has nothing live to say, so it collapses to one line.
+ * These rows keep the `hist` class for their hover actions and move-to menu, so
+ * every rule here is written compound to win against the older `.hist` block
+ * regardless of stylesheet order.
+ */
+.hist.sx-row-done {
+  margin: 0 var(--s3);
+  padding: 9px var(--s5);
+  border: 1px solid transparent;
+  border-radius: var(--r-row);
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  cursor: pointer;
+  background: transparent;
+  transition: background 160ms var(--ease-standard);
+}
+.hist.sx-row-done:hover {
+  background: var(--surface-card);
+}
+.hist.sx-row-done.is-selected,
+.hist.sx-row-done.is-selected:hover {
+  background: var(--surface-selected);
+  border-color: transparent;
+}
+.hist.sx-row-done .sx-title {
+  color: var(--fg-muted);
+}
+.hist.sx-row-done.is-selected .sx-title {
+  color: var(--fg);
+}
+.hist.sx-row-done.is-unread .sx-title {
+  color: var(--fg-body);
+}
+.hist.sx-row-done .sx-elapsed {
+  color: var(--fg-faint);
+}
+/* The rename input replaces the title in place, so it takes the title's slot. */
+.hist.sx-row-done .hist-title-input {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+}
+/* Room for the hover actions, which sit absolutely at the row's right edge. */
+.hist.sx-row-done:hover .sx-elapsed {
+  visibility: hidden;
+}
+
+/* ---- footer ---- */
+
+.sx-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s4) var(--s6);
+  border-top: 1px solid var(--line-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+.sx-foot-gap {
+  flex: 1;
+}
+
+/* ---- notes and empty states -------------------------------------------- */
+
+/*
+ * The sessions column's quiet prose. Replaces `.panel-hint`, which was styled
+ * only in the pre-redesign sheet against the old variables. Mono, because
+ * every other secondary readout in this column is mono.
+ */
+.sx-note {
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--fg-faint);
+  margin: 0;
+  padding: var(--s2) var(--s6);
+}
+
+/*
+ * Zero state for the whole column. Deliberately distinguishes "your query
+ * matched nothing" from "you have no history at all" — they need different
+ * actions, and a single "No sessions found." served neither.
+ */
+.sx-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s6);
+}
+.sx-empty .sx-note {
+  padding: 0;
+}

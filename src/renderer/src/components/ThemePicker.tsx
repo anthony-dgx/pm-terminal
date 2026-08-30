@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useMenuPlacement } from '../lib/menuPlacement.js'
 
 export interface ThemeDef {
   id: string
@@ -11,7 +12,10 @@ export interface ThemeDef {
 }
 
 export const THEMES: ThemeDef[] = [
-  { id: 'default', name: 'Default', note: 'Neutral slate', swatch: ['#14151a', '#7aa2f7'] },
+  { id: 'default', name: 'Default', note: 'Violet on near-black', swatch: ['#0e0b14', '#9c43fe'] },
+  // The palette Atelier shipped with before the shell redesign. Kept as a
+  // first-class choice so the new look is a change of default, not a loss.
+  { id: 'classic', name: 'Classic', note: 'The original neutral slate', swatch: ['#14151a', '#7aa2f7'] },
   {
     id: 'catppuccin',
     name: 'Catppuccin',
@@ -113,6 +117,51 @@ function findTheme(id: string): ThemeDef | undefined {
   return undefined
 }
 
+/**
+ * A theme group's flavors. Its own component so that each submenu measures
+ * itself on mount: it is the innermost thing on screen and therefore the first
+ * to run out of window.
+ */
+function Submenu({
+  flavors,
+  current,
+  onPick,
+}: {
+  flavors: ThemeDef[]
+  current: string
+  onPick: (id: string) => void
+}): React.ReactElement {
+  // Submenus grow rightwards out of the parent menu, so 'right' is preferred
+  // and the flip puts them on the parent's left instead. Capping the height is
+  // safe here — a flavor list has no absolutely positioned children of its own.
+  const placement = useMenuPlacement(true, 'right', true)
+  return (
+    <div
+      className={`model-menu model-menu-wide theme-submenu ${placement.flipX ? 'is-flip-x' : ''}`}
+      ref={placement.ref}
+      style={placement.maxHeight ? { maxHeight: placement.maxHeight, overflowY: 'auto' } : undefined}
+    >
+      {flavors.map((f) => (
+        <button
+          key={f.id}
+          className={`model-item ${current === f.id ? 'is-on' : ''}`}
+          onClick={() => onPick(f.id)}
+        >
+          <span className="model-item-name">
+            <span className="theme-swatch">
+              <i style={{ background: f.swatch[0] }} />
+              <i style={{ background: f.swatch[1] }} />
+            </span>
+            {f.name}
+            {current === f.id && <span className="model-check">✓</span>}
+          </span>
+          <span className="model-item-desc">{f.note}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function ThemePicker({
   current,
   onChange,
@@ -124,6 +173,9 @@ export function ThemePicker({
   const [subOpen, setSubOpen] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
   const active = findTheme(current) ?? THEMES[0]
+  // The trigger is the last control in the titlebar, so the menu is anchored to
+  // its right edge and grows left. It only flips if that runs out of window.
+  const menu = useMenuPlacement(open, 'left')
 
   useEffect(() => {
     if (!open) return
@@ -151,7 +203,11 @@ export function ThemePicker({
         <span className="theme-dot" style={{ background: active.swatch[1] }} />
       </button>
       {open && (
-        <div className="model-menu model-menu-left">
+        <div
+          className={`model-menu model-menu-wide ${menu.flipX ? 'is-flip-x' : ''}`}
+          ref={menu.ref}
+          style={menu.maxHeight ? { maxHeight: menu.maxHeight, overflowY: 'auto' } : undefined}
+        >
           {THEMES.map((t) => {
             const isActiveGroup = t.flavors ? t.flavors.some((f) => f.id === current) : current === t.id
             return (
@@ -182,29 +238,15 @@ export function ThemePicker({
                   <span className="model-item-desc">{t.note}</span>
                 </button>
                 {t.flavors && subOpen === t.id && (
-                  <div className="model-menu theme-submenu">
-                    {t.flavors.map((f) => (
-                      <button
-                        key={f.id}
-                        className={`model-item ${current === f.id ? 'is-on' : ''}`}
-                        onClick={() => {
-                          onChange(f.id)
-                          setOpen(false)
-                          setSubOpen(null)
-                        }}
-                      >
-                        <span className="model-item-name">
-                          <span className="theme-swatch">
-                            <i style={{ background: f.swatch[0] }} />
-                            <i style={{ background: f.swatch[1] }} />
-                          </span>
-                          {f.name}
-                          {current === f.id && <span className="model-check">✓</span>}
-                        </span>
-                        <span className="model-item-desc">{f.note}</span>
-                      </button>
-                    ))}
-                  </div>
+                  <Submenu
+                    flavors={t.flavors}
+                    current={current}
+                    onPick={(id) => {
+                      onChange(id)
+                      setOpen(false)
+                      setSubOpen(null)
+                    }}
+                  />
                 )}
               </div>
             )

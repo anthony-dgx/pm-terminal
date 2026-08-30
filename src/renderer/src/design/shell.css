@@ -1,0 +1,240 @@
+/*
+ * The frame around the transcript: title bar, the three columns, and the rails
+ * they collapse into.
+ *
+ * Loaded after styles.css so it can retune the existing shell without forking
+ * it. Where a rule here overrides an older one, the comment says which and why.
+ *
+ * The brief this answers: too many chrome elements were competing for
+ * attention. Almost everything below is subtraction — fewer surfaces, fewer
+ * borders, fewer colors, and status carried by a 7px dot instead of a pill.
+ */
+
+/* ---- title bar --------------------------------------------------------- */
+
+/*
+ * 48px, per the handoff. Overrides the 38px in styles.css: the bar now holds
+ * live counts rather than a row of pills, and needs the vertical room to sit
+ * them on a baseline with the path.
+ *
+ * The 84px left padding stays — the real macOS traffic lights live there
+ * (titleBarStyle: 'hiddenInset'), which is also why the shells' three fake
+ * window dots are not reproduced.
+ */
+.titlebar {
+  height: 48px;
+  padding: 0 16px 0 84px;
+  gap: 12px;
+  background: var(--surface-bar);
+  border-bottom: 1px solid var(--line-mid);
+}
+
+.titlebar-left,
+.titlebar-right {
+  gap: 10px;
+  min-width: 0;
+}
+
+/* The wordmark is gone: the mark plus the working directory already say which
+   app this is and what it is pointed at, and the bar needs the room. */
+.app-name {
+  display: none;
+}
+
+.app-mark {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--r-field);
+}
+
+/* The path reads as text, not as a button, until you go near it. It is the
+   most-used control in the bar but not the most important thing on screen. */
+.cwd-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--r-btn);
+  padding: 3px 7px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-dim);
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: border-color 160ms var(--ease-standard), color 160ms var(--ease-standard),
+    background 160ms var(--ease-standard);
+}
+.cwd-btn:hover {
+  color: var(--fg);
+  border-color: var(--line-strong);
+  background: var(--surface-card);
+}
+
+.tb-div {
+  width: 1px;
+  height: 18px;
+  background: var(--line-strong);
+  flex: none;
+}
+
+/*
+ * A live count. Plain text with a dot — deliberately not a chip, so the two
+ * things that matter do not look like the two dropdowns beside them.
+ */
+.tb-count {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--fg-dim);
+  background: none;
+  border: none;
+  padding: 0;
+  white-space: nowrap;
+}
+.tb-count.is-attn {
+  color: var(--attn-fg);
+}
+button.tb-count {
+  cursor: pointer;
+  transition: color 160ms var(--ease-standard);
+}
+/* A count is text, so its hover is the text affordance rather than a surface
+   step: underline plus one rung up the ramp. The attention count keeps amber —
+   hovering it must not turn "needs you" into "active". */
+button.tb-count:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+button.tb-count.is-attn:hover {
+  color: var(--attn-fg);
+}
+
+/* ---- body columns ------------------------------------------------------ */
+
+/*
+ * 308px sessions / 352px inspector, per the handoff. The old widths were 240px
+ * and whatever the inspector asked for; the session rows now carry three lines
+ * of status and the inspector carries a spend split, so both needed the room.
+ */
+.leftcol {
+  width: 308px;
+  border-right: 1px solid var(--line-mid);
+  background: var(--surface-chrome);
+}
+
+.inspector {
+  width: 352px;
+  flex: none;
+  border-left: 1px solid var(--line-mid);
+  background: var(--surface-chrome);
+}
+
+.chat {
+  background: var(--surface-window);
+}
+
+/*
+ * The transcript gets a reading measure instead of the full column width.
+ * Prose set across 900px is the reason the panels felt cramped and the middle
+ * felt empty at the same time. The scroller still spans the column so the
+ * scrollbar sits at the window edge; the measure is applied to the content.
+ *
+ * The padding itself lives in transcript.css on `.chat > .chat-scroll`, which
+ * is two classes deep so window-width media queries cannot put the old
+ * padding back. A single-class rule here would only ever be overridden, so it
+ * is deliberately absent rather than duplicated and dead.
+ */
+
+/* ---- rails ------------------------------------------------------------- */
+
+.sidebar-rail,
+.inspector-rail {
+  background: var(--surface-chrome);
+  color: var(--fg-hint);
+  transition: background 160ms var(--ease-standard), color 160ms var(--ease-standard);
+}
+/* A collapsed rail is one big button, so it takes the same one-step lighten as
+   a row: chrome -> card. */
+.sidebar-rail:hover,
+.inspector-rail:hover {
+  background: var(--surface-card);
+  color: var(--fg);
+}
+.inspector-rail {
+  border-left: 1px solid var(--line-mid);
+}
+
+/* ---- banners ----------------------------------------------------------- */
+
+/*
+ * Banners keep their place for the two things that are genuinely global — no
+ * `claude` binary, and viewing an archived session. Everything else moved to
+ * the composer's warning strip. Red is gone: amber is the app's one attention
+ * hue now, and a failure nobody can act on from here is still just "needs you".
+ */
+.banner {
+  padding: 9px 18px;
+  background: transparent;
+  border-bottom: 1px solid var(--line-mid);
+  color: var(--fg-dim);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.banner strong {
+  color: var(--fg);
+  font-weight: 500;
+}
+.banner-error {
+  background: transparent;
+  color: var(--attn-fg);
+}
+.banner-error code {
+  color: var(--fg);
+}
+
+/* ---- window ------------------------------------------------------------ */
+
+body {
+  background: var(--surface-window);
+  color: var(--fg);
+}
+
+/* Scrollbars read as part of the chrome rather than as an OS artifact. */
+.chat-scroll::-webkit-scrollbar,
+.sidebar-list::-webkit-scrollbar,
+.inspector-body::-webkit-scrollbar {
+  width: 10px;
+}
+.chat-scroll::-webkit-scrollbar-thumb,
+.sidebar-list::-webkit-scrollbar-thumb,
+.inspector-body::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 5px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+.chat-scroll::-webkit-scrollbar-thumb:hover,
+.sidebar-list::-webkit-scrollbar-thumb:hover,
+.inspector-body::-webkit-scrollbar-thumb:hover {
+  background: var(--line-btn);
+  background-clip: content-box;
+}
+.chat-scroll::-webkit-scrollbar-track,
+.sidebar-list::-webkit-scrollbar-track,
+.inspector-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ---- narrow windows ---------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .leftcol {
+    width: 268px;
+  }
+  .inspector {
+    width: 316px;
+  }
+}

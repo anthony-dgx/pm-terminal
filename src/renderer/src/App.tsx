@@ -22,6 +22,16 @@ import { Switcher, type SwitcherItem } from './components/Switcher.js'
 import { Thinking, phaseOf } from './components/Thinking.js'
 import { ThemePicker } from './components/ThemePicker.js'
 import { ReviewContext } from './review.js'
+import {
+  EMPTY_USAGE,
+  deriveState,
+  deriveTitle,
+  deriveVitals,
+  searchText,
+  shortenPath,
+  type SessionVitals,
+  type VitalsUsage,
+} from './lib/sessionState.js'
 import logo from './assets/logo.png'
 
 /**
@@ -77,7 +87,40 @@ function blankConversation(over: Partial<Conversation> = {}): Conversation {
   }
 }
 
+/**
+ * 'claude-sonnet-4-5-20250929' -> 'sonnet 4.5'. The spend split is read at a
+ * glance in a 352px column, so the id is more than it can carry.
+ */
+function shortModel(id: string | null): string {
+  if (!id) return 'default'
+  const m = id.match(/(opus|sonnet|haiku)-?(\d+)[-.]?(\d+)?/i)
+  if (!m) return id.replace(/^claude-/, '').replace(/-\d{8}$/, '')
+  return `${m[1].toLowerCase()} ${m[2]}${m[3] ? `.${m[3]}` : ''}`
+}
+
+/**
+ * Whether the keystroke is already going somewhere that wants characters.
+ *
+ * Guards the bare-key shortcuts. Covers the switcher's input and the sidebar's
+ * own search field as well as the composer, so `/` never fights with typing.
+ */
+function isTypingTarget(): boolean {
+  const el = document.activeElement as HTMLElement | null
+  if (!el) return false
+  const tag = el.tagName
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable
+}
+
 /** The model a recorded session last ran on, from its assistant turns. */
+/**
+ * Whether a model string names a real model rather than one of the picker's
+ * "let something else decide" sentinels. Those are fine as a *setting*, but
+ * they are not an answer to "which model spent this money".
+ */
+function isRealModel(id: string | null | undefined): id is string {
+  return Boolean(id) && id !== 'default' && id !== 'inherit'
+}
+
 function modelOfTurns(turns: Turn[]): string | null {
   for (let i = turns.length - 1; i >= 0; i--) {
     const m = turns[i].model
@@ -86,26 +129,9 @@ function modelOfTurns(turns: Turn[]): string | null {
   return null
 }
 
-/**
- * What to call an open conversation in the switcher. History gives recorded
- * ones a real title, but a conversation started here has none until it is
- * saved, so fall back to what was actually asked in it.
- */
-function conversationTitle(c: Conversation): string {
-  if (c.entry?.title) return c.entry.title
-  for (const t of c.turns) {
-    if (t.role !== 'user') continue
-    const text = t.blocks
-      .map((b) => (b.kind === 'text' ? b.text : ''))
-      .join(' ')
-      .trim()
-    if (text) return text.length > 80 ? `${text.slice(0, 80)}...` : text
-  }
-  // A draft in the composer is the only signal left on a tab never sent.
-  const draft = c.input.trim()
-  if (draft) return draft.length > 80 ? `${draft.slice(0, 80)}...` : draft
-  return 'New session'
-}
+// Naming a conversation now lives in lib/sessionState, next to the rest of the
+// derived status, so the switcher and the session rows cannot drift apart on
+// what a session is called.
 
 export function App(): React.ReactElement {
   const [env, setEnv] = useState<{
@@ -138,6 +164,31 @@ export function App(): React.ReactElement {
   // Bumped to ask the sidebar to create a group; it owns the group state.
   const [newGroupSignal, setNewGroupSignal] = useState(0)
   const [switcherOpen, setSwitcherOpen] = useState(false)
+  /**
+   * Tokens, cost and context per conversation.
+   *
+   * Main tallies these per session but only ever answered when the panel asked,
+   * so nothing outside the panel could show a figure. The shell now reads spend
+   * in three places at once (title bar, session rows, inspector footer), so it
+   * is pulled here once and shared rather than fetched per component.
+   */
+  const [usageById, setUsageById] = useState<Record<string, VitalsUsage>>({})
+  /**
+   * How long each assistant turn took, in ms, keyed by turn id.
+   *
+   * The only per-turn figure that genuinely exists: main accumulates tokens and
+   * cost per session, so there is nothing to hand a single turn beyond the wall
+   * clock this window watched pass. Measured from the turn's own `at` to the
+   * moment it stopped streaming.
+   */
+  const [turnMs, setTurnMs] = useState<Record<string, number>>({})
+  /** Short commit of the running build, for the sessions footer. */
+  const [build, setBuild] = useState('')
+  /**
+   * Ticks so the elapsed columns age on their own. Session rows show '4m', and
+   * without this they would keep saying 'now' until some other state changed.
+   */
+  const [nowTick, setNowTick] = useState(0)
   const [kroks, setKroks] = useState<KroksReaction>(null)
   const kroksSeq = useRef(0)
   const poke = useCallback((kind: 'meow' | 'perk') => {
@@ -145,6 +196,8 @@ export function App(): React.ReactElement {
   }, [])
 
   const scrollRef = useRef<HTMLDivElement>(null)
+  /** The sessions column's search field, so `/` and Cmd+F can put focus in it. */
+  const searchRef = useRef<HTMLInputElement>(null)
   const pinnedRef = useRef(true)
   const newConversationRef = useRef<(profileId?: string | null) => void>(() => undefined)
   const sidebarPrefRef = useRef(true)
@@ -216,7 +269,19 @@ export function App(): React.ReactElement {
               unread: done && !isActive() ? true : c.unread,
             }
           })
-          if (e.turn.role === 'assistant' && e.turn.streaming === false && isActive()) poke('meow')
+          if (e.turn.role === 'assistant' && e.turn.streaming === false) {
+            // Recorded once and never revised: a late tool result re-emits a
+            // finished turn, and the second timestamp would be meaningless.
+            const startedAt = Date.parse(e.turn.at)
+            if (!Number.isNaN(startedAt)) {
+              setTurnMs((prev) =>
+                prev[e.turn.id] !== undefined
+                  ? prev
+                  : { ...prev, [e.turn.id]: Math.max(0, Date.now() - startedAt) },
+              )
+            }
+            if (isActive()) poke('meow')
+          }
           break
         }
         case 'turn-delta':
@@ -308,6 +373,77 @@ export function App(): React.ReactElement {
     void desk.setTheme(next)
   }, [])
 
+  useEffect(() => {
+    void desk.updateStatus().then((s) => setBuild(s.commit.slice(0, 7)))
+  }, [])
+
+  // 30s is fine: the labels are 'now' / '4m' / '2h', so a finer clock would
+  // re-render the whole list to produce the same string.
+  useEffect(() => {
+    const t = setInterval(() => setNowTick((n) => n + 1), 30_000)
+    return () => clearInterval(t)
+  }, [])
+
+  /**
+   * Keep the per-session figures fresh.
+   *
+   * Refetched whenever the agent reports activity, and on a slow timer while
+   * anything is in flight, because tokens keep climbing during a turn without
+   * any event firing. Only started sessions are asked: main has no tally for a
+   * conversation that never ran, and asking would just log a miss.
+   */
+  const startedIds = useMemo(
+    () =>
+      Object.values(conversations)
+        .filter((c) => c.started)
+        .map((c) => c.id)
+        .sort()
+        .join(','),
+    [conversations],
+  )
+  const anyAwaiting = useMemo(
+    () => Object.values(conversations).some((c) => c.awaiting),
+    [conversations],
+  )
+
+  useEffect(() => {
+    const ids = startedIds ? startedIds.split(',') : []
+    if (!ids.length) return
+    let cancelled = false
+
+    const pull = async (): Promise<void> => {
+      const rows = await Promise.all(
+        ids.map(async (id) => {
+          const [u, ctx] = await Promise.all([desk.usage(id), desk.contextUsage(id)])
+          const usage: VitalsUsage = {
+            tokens: (u?.inputTokens ?? 0) + (u?.outputTokens ?? 0),
+            cost: u?.totalCostUsd ?? 0,
+            turns: u?.turns ?? 0,
+            contextUsed: ctx?.totalTokens ?? 0,
+            contextLimit: ctx?.contextWindow ?? 0,
+          }
+          return [id, usage] as const
+        }),
+      )
+      if (cancelled) return
+      setUsageById((prev) => {
+        const next = { ...prev }
+        for (const [id, usage] of rows) next[id] = usage
+        return next
+      })
+    }
+
+    void pull()
+    if (!anyAwaiting) return () => {
+      cancelled = true
+    }
+    const t = setInterval(() => void pull(), 5_000)
+    return () => {
+      cancelled = true
+      clearInterval(t)
+    }
+  }, [startedIds, anyAwaiting, activityKey])
+
   const toggleInspector = useCallback(() => {
     setInspectorOpen((open) => {
       const next = !open
@@ -337,10 +473,68 @@ export function App(): React.ReactElement {
     })
   }, [])
 
+  /**
+   * Put the caret in the sessions search field.
+   *
+   * Reveals the column first if it is hidden: focusing a field nobody can see
+   * would swallow the next keystrokes into nothing. The field may only mount on
+   * the following frame, hence the short retry rather than a single focus call.
+   */
+  const focusSearch = useCallback(() => {
+    setSidebarOpen((open) => {
+      if (!open) {
+        sidebarPrefRef.current = true
+        void desk.setSidebarOpen(true)
+      }
+      return true
+    })
+    const attempt = (left: number): void => {
+      const el = searchRef.current
+      if (el) {
+        el.focus()
+        el.select()
+        return
+      }
+      if (left > 0) requestAnimationFrame(() => attempt(left - 1))
+    }
+    requestAnimationFrame(() => attempt(3))
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
+      /*
+       * Bare `/` belongs to the composer's skill autocomplete — that is what it
+       * has always done and what the README documents. The handoff also wanted
+       * `/` to focus search, but that only works if the composer already has
+       * focus, which it does not after clicking Stop, Copy, a permission button
+       * or anywhere in the transcript. Binding search here meant typing `/` to
+       * start a skill silently jumped to the sidebar (and force-opened it).
+       *
+       * So: put the caret in the composer and let the keystroke through, which
+       * opens the skill menu. Search keeps Cmd+K and Cmd+F, both of which the
+       * handoff lists too.
+       */
+      if (e.key === '/' && !e.metaKey && !e.ctrlKey && !e.altKey && !isTypingTarget()) {
+        const ta = document.querySelector<HTMLTextAreaElement>('.composer textarea')
+        if (ta) {
+          // No preventDefault: focusing synchronously lets the '/' land in the
+          // textarea, so the menu opens on the same keystroke.
+          ta.focus()
+          return
+        }
+        e.preventDefault()
+        focusSearch()
+        return
+      }
       if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey) return
       switch (e.key.toLowerCase()) {
+        // Cmd+K opens the palette, which is the "find any session" surface;
+        // Cmd+F is the ordinary find gesture and lands in the list's own field.
+        // The handoff's "`/` or Cmd+K" allows both, and neither was bound.
+        case 'f':
+          e.preventDefault()
+          focusSearch()
+          break
         case 'i':
           e.preventDefault()
           toggleInspector()
@@ -376,7 +570,7 @@ export function App(): React.ReactElement {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [toggleInspector, toggleSidebar])
+  }, [toggleInspector, toggleSidebar, focusSearch])
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current
@@ -515,11 +709,15 @@ export function App(): React.ReactElement {
     () =>
       Object.values(conversations).map((c) => ({
         key: c.id,
-        title: conversationTitle(c),
+        title: deriveTitle(c),
         cwd: c.cwd,
         detail: c.entry?.firstPrompt ?? c.input,
         sessionId: c.sessionId ?? c.entry?.sessionId ?? null,
         open: true,
+        // Lets the palette lift the ones stopped on a person into their own
+        // section. Derived here rather than read off `vitals` so this memo does
+        // not have to run after it.
+        state: deriveState(c),
         unread: c.unread,
         at: c.turns.length ? Date.parse(c.turns[c.turns.length - 1].at) || 0 : 0,
         entry: null,
@@ -609,6 +807,34 @@ export function App(): React.ReactElement {
     [conv?.turns],
   )
 
+  /**
+   * One flattened, lower-cased haystack per open conversation, so the sessions
+   * column can search what an agent actually said and not just its title.
+   *
+   * Cached against the `turns` array identity: a stream delta replaces
+   * `conversations` many times a second, and re-flattening every transcript on
+   * each of those would be the whole cost of the feature. Only the conversation
+   * whose turns actually changed is rebuilt.
+   */
+  const searchCache = useRef(new Map<string, { turns: Turn[]; text: string }>())
+  const searchTextById = useMemo(() => {
+    const cache = searchCache.current
+    const out: Record<string, string> = {}
+    for (const c of Object.values(conversations)) {
+      const hit = cache.get(c.id)
+      if (hit && hit.turns === c.turns) {
+        out[c.id] = hit.text
+        continue
+      }
+      const text = searchText(c.turns)
+      cache.set(c.id, { turns: c.turns, text })
+      out[c.id] = text
+    }
+    // A closed conversation must not keep its transcript alive in the cache.
+    for (const id of [...cache.keys()]) if (!(id in out)) cache.delete(id)
+    return out
+  }, [conversations])
+
   /** Session ids with work in flight, so the sidebar can mark them. */
   const busySessionIds = useMemo(
     () =>
@@ -629,13 +855,67 @@ export function App(): React.ReactElement {
     [conversations],
   )
 
+  /**
+   * One status object per open conversation. Every surface that shows a session
+   * — the rows, the title bar counts, the inspector — reads these, so they can
+   * never disagree about what an agent is doing.
+   */
+  const vitals = useMemo<SessionVitals[]>(
+    () =>
+      Object.values(conversations).map((c) =>
+        deriveVitals(c, usageById[c.id] ?? EMPTY_USAGE),
+      ),
+    // nowTick is a dependency on purpose: it is what ages the elapsed labels.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [conversations, usageById, nowTick],
+  )
+
+  const runningCount = vitals.filter((v) => v.state === 'running').length
+  /** Blocked counts as needing you: both mean the agent has stopped on a person. */
+  const needsYouCount = vitals.filter(
+    (v) => v.state === 'needs_you' || v.state === 'blocked',
+  ).length
+
+  /**
+   * Today's spend, split by model.
+   *
+   * The point of this figure is which model the money went to, not a time
+   * series — an hour-by-hour chart of your own spend answers no question you
+   * actually have. Attribution is per conversation, since that is the finest
+   * grain main tallies at.
+   */
+  const spend = useMemo(() => {
+    const byModel = new Map<string, { model: string; tokens: number; cost: number }>()
+    let tokens = 0
+    let cost = 0
+    for (const c of Object.values(conversations)) {
+      const u = usageById[c.id]
+      if (!u || (!u.tokens && !u.cost)) continue
+      tokens += u.tokens
+      cost += u.cost
+      // `default` is the picker's "let the CLI choose" sentinel, not a model. A
+      // split chart whose biggest slice is labelled "default" answers nothing,
+      // so fall through to what the turns say actually replied.
+      const pinned = c.info?.model ?? c.model
+      const model = shortModel(isRealModel(pinned) ? pinned : modelOfTurns(c.turns))
+      const row = byModel.get(model) ?? { model, tokens: 0, cost: 0 }
+      row.tokens += u.tokens
+      row.cost += u.cost
+      byModel.set(model, row)
+    }
+    return {
+      tokens,
+      cost,
+      byModel: [...byModel.values()].sort((a, b) => b.cost - a.cost),
+    }
+  }, [conversations, usageById])
+
   if (!env || !conv) return <div className="boot">Loading...</div>
 
-  const shortCwd = conv.cwd.startsWith(env.home) ? `~${conv.cwd.slice(env.home.length)}` : conv.cwd
+  const shortCwd = shortenPath(conv.cwd, env.home)
   const viewingArchive = Boolean(conv.entry) && !conv.started
-  const statusLabel = viewingArchive ? 'opened' : (conv.info?.status ?? 'idle')
-  const otherBusy = Object.values(conversations).filter((c) => c.awaiting && c.id !== activeId).length
-  const unreadCount = Object.values(conversations).filter((c) => c.unread).length
+  /** The per-session state pill is gone from the bar; the row's dot says it now. */
+  const activeVitals = vitals.find((v) => v.id === activeId) ?? null
 
   return (
     <ReviewContext.Provider value={openReview}>
@@ -645,43 +925,55 @@ export function App(): React.ReactElement {
           {/* Its own class, not part of `.app-name`: the word is hidden in a
               narrow window, and the mark is what still says which app this is. */}
           <img className="app-mark" src={logo} alt="" />
-          <span className="app-name">Atelier</span>
           <button className="cwd-btn" onClick={() => void pickDir()} title="Change working directory">
             {shortCwd}
           </button>
-          <ThemePicker current={theme} onChange={chooseTheme} />
-        </div>
-        <div className="titlebar-right">
-          {/* The pastille lives on the session row, but the sessions panel can
-              be closed, so say it here too. Clicking opens the switcher, which
-              sorts the unread ones to the top, so enter goes straight there. */}
-          {unreadCount > 0 && (
-            <button
-              className="status status-unread"
-              onClick={() => setSwitcherOpen(true)}
-              title="Answers you have not read yet"
-            >
-              <span className="pip" />
-              {winWidth >= 900 ? `${unreadCount} to read` : unreadCount}
-            </button>
-          )}
-          {otherBusy > 0 && (
-            <span className="status status-elsewhere" title="Other sessions are still working">
-              {winWidth >= 900 ? `${otherBusy} running elsewhere` : otherBusy}
+
+          <span className="tb-div" />
+
+          {/*
+            Two counts replace the five separate pills this bar used to carry.
+            They are the only two questions worth answering from across the
+            room: is anything working, and does anything want me. Both are
+            absent rather than zeroed when there is nothing to say — a row of
+            zeros is chrome competing for attention, which is the thing the
+            redesign is trying to remove.
+          */}
+          {runningCount > 0 && (
+            <span className="tb-count" title="Sessions with work in flight">
+              <span className="dot dot-running" />
+              {winWidth >= 880 ? `${runningCount} running` : runningCount}
             </span>
           )}
-          <span className={`status status-${statusLabel}`}>{statusLabel}</span>
-          <ProfilePicker
-            current={conv.profileId}
-            refreshKey={profilesKey}
-            onChange={(id) => patch(activeId, (c) => ({ ...c, profileId: id }))}
-          />
+          {needsYouCount > 0 && (
+            <button
+              className="tb-count is-attn"
+              onClick={() => setSwitcherOpen(true)}
+              title="Sessions waiting on you"
+            >
+              <span className="dot dot-attn" />
+              {winWidth >= 880 ? `${needsYouCount} need you` : needsYouCount}
+            </button>
+          )}
+        </div>
+        {/*
+         * Order follows the handoff: model, then profile. The theme swatch is
+         * an addition the spec does not describe, so it sits outboard of the
+         * two session controls rather than between them.
+         */}
+        <div className="titlebar-right">
           <ModelPicker
             clientId={activeId}
             current={conv.info?.model ?? conv.model}
             live={conv.info?.status === 'running'}
             onChange={changeModel}
           />
+          <ProfilePicker
+            current={conv.profileId}
+            refreshKey={profilesKey}
+            onChange={(id) => patch(activeId, (c) => ({ ...c, profileId: id }))}
+          />
+          <ThemePicker current={theme} onChange={chooseTheme} />
           {conv.awaiting && (
             <button className="btn btn-deny" onClick={stop}>
               Stop
@@ -726,6 +1018,12 @@ export function App(): React.ReactElement {
               onNewInGroup={(gProfileId) => newConversation(gProfileId ?? null)}
               onClose={toggleSidebar}
               newGroupSignal={newGroupSignal}
+              vitals={vitals}
+              activeConversationId={activeId}
+              onSelectConversation={select}
+              build={build}
+              searchTextById={searchTextById}
+              searchRef={searchRef}
             />
           ) : (
             <button className="sidebar-rail" onClick={toggleSidebar} title="Show sessions (Cmd+B)">
@@ -748,19 +1046,36 @@ export function App(): React.ReactElement {
 
         <main className="chat">
           <div className="chat-scroll" ref={scrollRef} onScroll={onScroll}>
+            {/*
+              The first thing you see in a new session, so it says what this
+              session *is* — directory and model — rather than describing the
+              app's features. On the transcript's own measure, in the shell's
+              eyebrow-and-keyhint vocabulary, not the old centred hero.
+            */}
             {!conv.turns.length && (
-              <div className="empty">
-                <h2>New session</h2>
-                <p>
-                  Running in <code>{shortCwd}</code> with your real skills, plugins, and MCP servers loaded.
+              <div className="tx-empty">
+                <span className="eyebrow">New session</span>
+                <div className="rule" />
+                <p className="tx-empty-say">
+                  <code>{shortCwd}</code> · {shortModel(conv.info?.model ?? conv.model)} · your real
+                  skills, plugins and MCP servers
                 </p>
-                <p className="panel-hint">
-                  Every code block, tool output, and table below gets its own copy button.
-                </p>
+                <div className="tx-keys">
+                  <span className="keyhint">⌘K</span> switch session ·{' '}
+                  <span className="keyhint">/</span> search titles, paths and output ·{' '}
+                  <span className="keyhint">⏎</span> send
+                </div>
               </div>
             )}
             {conv.turns.map((t) => (
-              <TurnView key={t.id} turn={t} streamBuffer={conv.streamBuffers[t.id]} />
+              <TurnView
+                key={t.id}
+                turn={t}
+                streamBuffer={conv.streamBuffers[t.id]}
+                // Duration only: tokens and cost are tallied per session, so
+                // there is no honest per-turn figure to pass for them.
+                usage={turnMs[t.id] !== undefined ? { durationMs: turnMs[t.id] } : undefined}
+              />
             ))}
             {conv.awaiting && !conv.permissions.length && (
               <Thinking
@@ -783,20 +1098,15 @@ export function App(): React.ReactElement {
             </div>
           )}
 
-          {notices.length > 0 && (
-            <div className="notices">
-              {notices.map((n, i) => (
-                <div key={i} className={`notice notice-${n.level}`}>
-                  {n.text}
-                </div>
-              ))}
-              <button className="linkish" onClick={() => setNotices([])}>
-                dismiss
-              </button>
-            </div>
-          )}
-
+          {/*
+            Notices used to stack loose above the composer, each one another
+            box competing with the transcript. They are now a single strip on
+            the composer itself: the newest thing wrong, dismissible, in the
+            one place you are already looking when you go to type.
+          */}
           <Composer
+            warnings={notices}
+            onDismissWarning={(i) => setNotices((prev) => prev.filter((_, j) => j !== i))}
             clientId={activeId}
             cwd={conv.cwd}
             value={conv.input}
@@ -820,6 +1130,9 @@ export function App(): React.ReactElement {
             profilesKey={profilesKey}
             onProfilesChanged={() => setProfilesKey((k) => k + 1)}
             onClose={toggleInspector}
+            vitals={vitals}
+            spend={spend}
+            sessionLabel={activeVitals?.title ?? 'session'}
           />
         ) : (
           <button className="inspector-rail" onClick={toggleInspector} title="Show panel (Cmd+I)">

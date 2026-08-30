@@ -41,15 +41,14 @@ export function Thinking({ phase, since, onStop }: Props): React.ReactElement {
   const secs = Math.max(0, (now - since) / 1000)
 
   return (
-    <div className="thinking-bar" role="status" aria-live="polite">
-      <span className="thinking-dots" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-      </span>
-      <span className="thinking-phase">{phase}</span>
-      <span className="thinking-elapsed">{secs < 10 ? secs.toFixed(1) : Math.round(secs)}s</span>
-      <button className="btn btn-sm btn-deny thinking-stop" onClick={onStop}>
+    // One line on the reading measure, not a boxed banner: the agent working is
+    // the normal case, so it announces itself the way every other status in the
+    // shell does — a pulsing violet dot and mono text.
+    <div className="tx-thinking" role="status" aria-live="polite">
+      <span className="dot dot-running" aria-hidden="true" />
+      <span className="tx-thinking-phase">{phase}</span>
+      <span className="tx-thinking-elapsed">{secs < 10 ? secs.toFixed(1) : Math.round(secs)}s</span>
+      <button className="obtn tx-thinking-stop" onClick={onStop}>
         Stop
       </button>
     </div>

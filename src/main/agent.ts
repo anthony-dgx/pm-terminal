@@ -604,15 +604,18 @@ export class AgentSession {
   async contextUsage(): Promise<ContextUsageView | null> {
     if (!this.q) return null
     try {
-      const u = (await this.q.getContextUsage()) as unknown as {
-        totalTokens?: number
-        contextWindow?: number
-        breakdown?: Record<string, number>
-      }
+      // The SDK names the window `maxTokens`, not `contextWindow`, and returns
+      // `categories` as an array rather than a `breakdown` map. Reading the old
+      // names left contextWindow undefined, which made the percentage null and
+      // silently hid the inspector's context footer altogether.
+      const u = await this.q.getContextUsage()
       return {
         totalTokens: u.totalTokens ?? 0,
-        contextWindow: u.contextWindow,
-        categories: Object.entries(u.breakdown ?? {}).map(([name, tokens]) => ({ name, tokens })),
+        // `rawMaxTokens` is the model's true window; `maxTokens` is what is
+        // usable after the CLI's own reserve. Prefer the usable figure, because
+        // that is the number the session actually runs out of.
+        contextWindow: u.maxTokens || u.rawMaxTokens || undefined,
+        categories: (u.categories ?? []).map(({ name, tokens }) => ({ name, tokens })),
       }
     } catch {
       return null

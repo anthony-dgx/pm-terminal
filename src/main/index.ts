@@ -39,7 +39,14 @@ app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
  * on screen. Sessions now run concurrently and every event they emit is
  * tagged, so the renderer can file it against the right conversation.
  */
-const sessions = new Map<string, { session: AgentSession; winId: number }>()
+/**
+ * The options are kept alongside the session because clearing the context
+ * rebuilds it: same directory, model and profile, new context window.
+ */
+const sessions = new Map<
+  string,
+  { session: AgentSession; winId: number; opts: SessionOptions }
+>()
 
 function sessionFor(clientId: string): AgentSession | undefined {
   return sessions.get(clientId)?.session
@@ -206,10 +213,35 @@ function registerIpc(): void {
       profilePrompt: (await profilePrompt(opts.profileId)) ?? undefined,
     }
     const session = new AgentSession(resolved, emitterFor(clientId))
-    sessions.set(clientId, { session, winId: win.id })
+    sessions.set(clientId, { session, winId: win.id, opts: resolved })
     // Remember the directory so the next launch loads the same local-scope
     // MCP servers instead of starting empty in the home directory.
     void writePrefs({ lastCwd: opts.cwd, lastProfileId: opts.profileId ?? null })
+    return session.getInfo()
+  })
+
+  /**
+   * Start a fresh context window for a conversation, keeping the session.
+   *
+   * A long session eventually spends most of its context on things nobody
+   * needs any more, and the only remedy used to be abandoning it and opening a
+   * new one - which loses the working directory, the model and the profile
+   * along with the history.
+   *
+   * This drops the agent's accumulated context and starts a new one on the
+   * same settings. The transcript on screen and the record on disk are
+   * untouched: what is cleared is what the model is carrying, not what you can
+   * read. Deliberately does not resume, since resuming is what would reload
+   * the context we were asked to drop.
+   */
+  ipcMain.handle('session:clear', async (event, clientId: string) => {
+    const win = windowOf(event)
+    const existing = sessions.get(clientId)
+    if (!win || !existing) return null
+    existing.session.dispose()
+    const opts: SessionOptions = { ...existing.opts, resume: undefined }
+    const session = new AgentSession(opts, emitterFor(clientId))
+    sessions.set(clientId, { session, winId: win.id, opts })
     return session.getInfo()
   })
 
