@@ -76,7 +76,8 @@ it refuses if the clone is dirty, not on `main`, or diverged. Updating quits the
 mid-turn dies with it. It asks first, and tells you how many sessions would be stopped.
 
 **Agent profiles.** A reusable set of instructions applied when a session starts. Pick one per
-session, or give a group a default. Two ship with the app: **Staff AAA PM** and **Cowboy**. Write
+session, or give a group a default. Three ship with the app: **Staff AAA PM**, **Engineering
+Manager** and **Cowboy**. Write
 your own in the Profiles tab.
 
 **Run a session on a non-Anthropic model.** If Datadog's AI Gateway client proxy is installed, its
