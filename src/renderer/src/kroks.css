@@ -220,13 +220,18 @@
 .kroks-mute:hover { color: var(--text); }
 
 /* ---- the dragon ---------------------------------------------------------
-   Ryu is drawn into the same coordinate scaffold as the cat, so the shared
-   layer rules mostly hold. Only what genuinely differs is overridden, and
-   always scoped to .is-dragon rather than edited in place. */
+   Ryu is an eastern dragon, so he is long rather than tall and needs his own
+   box: 190x114px against the cat's 92x114. His artwork is on a 2400x1440
+   viewBox, the same 5:3, so object-fit: contain fits it with no letterbox.
+   Every percentage below is a fraction of that wider box, which is why the
+   shared rules cannot simply be inherited. The sidebar is 240px, so 190 fits.
+   Nothing here is edited in place: it is all scoped to .is-dragon. */
 
-/* The tail leaves the body a little further in and higher than the cat's. */
+.kroks-cat.is-dragon { width: 190px; }
+
+/* Where the tail layer overlaps the body layer, at (900, 1005) on the grid. */
 .kroks-cat.is-dragon .kroks-tail {
-  transform-origin: 25% 70%;
+  transform-origin: 37.5% 70%;
   animation: kroks-tail-swim 2.4s ease-in-out infinite;
 }
 @keyframes kroks-tail-swim {
@@ -235,35 +240,43 @@
 }
 .kroks-cat.is-dragon.excited .kroks-tail { animation-duration: 0.8s; }
 
-/* Horns twitch far less than ears do; they are bone. */
+/* Horns twitch far less than ears do; they are bone. The origins are each
+   antler's root on the skull, which is what the poke rotates about. */
 .kroks-cat.is-dragon .kroks-ear-l,
 .kroks-cat.is-dragon .kroks-ear-r { animation: none; }
+.kroks-cat.is-dragon .kroks-ear-l { transform-origin: 73% 32%; }
+.kroks-cat.is-dragon .kroks-ear-r { transform-origin: 80% 32%; }
+/* Both antlers sit at the top right of the wide box, over the head. */
+.kroks-cat.is-dragon .kroks-ear-hot-l { left: 67%; top: 18%; width: 7%; height: 14%; }
+.kroks-cat.is-dragon .kroks-ear-hot-r { left: 74%; top: 18%; width: 7%; height: 14%; }
+/* The right antler's poke leans the other way, and neither carries the cat's
+   2px offset - that came from the cat's right ear sitting lower. */
+.kroks-cat.is-dragon .kroks-ear-r.poke { animation: kroks-ear-poke-l 0.5s ease; }
 
-/* Wings sit behind everything else in the stack and beat continuously: this
-   pet is airborne, so they never stop, they only change tempo. */
-.kroks-wing-l,
-.kroks-wing-r {
+/* Shenron and Rayquaza have no wings, so the two layers behind the body are
+   forelimbs. They paddle rather than beat: nothing here generates lift, the
+   hover does that, and a limb swinging like a wing reads as broken. */
+.kroks-limb-l,
+.kroks-limb-r {
   z-index: -1;
-  animation: kroks-flap-l 1.1s ease-in-out infinite;
+  animation: kroks-paddle-l 1.8s ease-in-out infinite;
 }
-/* The origin is the shoulder the membrane hangs off, at (336, 840) on the
-   1152x1440 grid. Get this wrong and the wing paddles instead of beating. */
-.kroks-wing-l { transform-origin: 29% 58%; }
-.kroks-wing-r { transform-origin: 71% 58%; animation-name: kroks-flap-r; }
-@keyframes kroks-flap-l {
-  0%, 100% { transform: rotate(-11deg) scaleY(0.9); }
-  50% { transform: rotate(13deg) scaleY(1.06); }
+/* Each origin is the shoulder the limb hangs off, on the 2400x1440 grid:
+   (1020, 1008) for the rear limb, (1428, 984) for the front one. */
+.kroks-limb-l { transform-origin: 42.5% 70%; }
+.kroks-limb-r { transform-origin: 59.5% 68%; animation-name: kroks-paddle-r; }
+@keyframes kroks-paddle-l {
+  0%, 100% { transform: rotate(-7deg); }
+  50% { transform: rotate(6deg); }
 }
-@keyframes kroks-flap-r {
-  0%, 100% { transform: rotate(11deg) scaleY(0.9); }
-  50% { transform: rotate(-13deg) scaleY(1.06); }
+@keyframes kroks-paddle-r {
+  0%, 100% { transform: rotate(6deg); }
+  50% { transform: rotate(-7deg); }
 }
-.kroks-cat.excited .kroks-wing-l,
-.kroks-cat.excited .kroks-wing-r { animation-duration: 0.5s; }
-/* Asleep, he glides: the beat slows right down rather than stopping, which
-   would drop him out of the sky. */
-.kroks-cat.state-sleep .kroks-wing-l,
-.kroks-cat.state-sleep .kroks-wing-r { animation-duration: 3.4s; }
+.kroks-cat.excited .kroks-limb-l,
+.kroks-cat.excited .kroks-limb-r { animation-duration: 0.8s; }
+.kroks-cat.state-sleep .kroks-limb-l,
+.kroks-cat.state-sleep .kroks-limb-r { animation-duration: 4.2s; }
 
 /* Hovering replaces breathing. It rides on .kroks-stack, the same element the
    happy wiggle claims, so a wiggle briefly interrupts the hover - half a
@@ -354,12 +367,12 @@
   .kroks-tail,
   .kroks-ear-l,
   .kroks-ear-r,
-  .kroks-wing-l,
-  .kroks-wing-r,
+  .kroks-limb-l,
+  .kroks-limb-r,
   .kroks-city-band,
   .kroks-b.is-flicker,
   .kroks-shadow { animation: none; }
-  /* Wings frozen mid-beat rather than folded flat, so he still reads as flying. */
-  .kroks-wing-l { transform: rotate(-6deg); }
-  .kroks-wing-r { transform: rotate(6deg); }
+  /* Limbs frozen mid-stroke rather than tucked, so he still reads as swimming. */
+  .kroks-limb-l { transform: rotate(-4deg); }
+  .kroks-limb-r { transform: rotate(4deg); }
 }

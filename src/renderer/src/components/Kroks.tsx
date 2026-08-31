@@ -22,6 +22,7 @@ import hTeeth from '../assets/rodeo/teeth.svg'
 import hEarLeft from '../assets/rodeo/ear-left.svg'
 import hEarRight from '../assets/rodeo/ear-right.svg'
 import hTail from '../assets/rodeo/tail.svg'
+import whinnyMp3 from '../assets/rodeo/whinny.mp3'
 import dBody from '../assets/ryu/body.svg'
 import dHeadNormal from '../assets/ryu/head-normal.svg'
 import dHeadOpen from '../assets/ryu/head-open.svg'
@@ -32,8 +33,9 @@ import dFlame from '../assets/ryu/flame.svg'
 import dHornLeft from '../assets/ryu/horn-left.svg'
 import dHornRight from '../assets/ryu/horn-right.svg'
 import dTail from '../assets/ryu/tail.svg'
-import dWingLeft from '../assets/ryu/wing-left.svg'
-import dWingRight from '../assets/ryu/wing-right.svg'
+import dLimbLeft from '../assets/ryu/limb-left.svg'
+import dLimbRight from '../assets/ryu/limb-right.svg'
+import roarMp3 from '../assets/ryu/roar.mp3'
 import '../kroks.css'
 
 interface Cast {
@@ -51,8 +53,12 @@ interface Cast {
   tail: string
   /** Which pose shows `extra`. Fire belongs to the roar, a tongue to the wiggle. */
   extraOn?: 'happy' | 'call'
-  /** Behind the body, flapping. Only a flyer has them. */
-  wings?: [string, string]
+  /** The pet's voice, if it has a recording. Falls back to the cat's meow. */
+  sound?: string
+  /** How long the call pose is held. Defaults to the length of the three hops. */
+  poseMs?: number
+  /** Two symmetric layers behind the body: the dragon's forelimbs. */
+  limbs?: [string, string]
   /** A flyer hovers instead of standing, so it drops the ground shadow. */
   flying?: boolean
   /** Backdrop painted behind the pet. */
@@ -91,6 +97,9 @@ const CASTS: Record<PetVariant, Cast> = {
     earLeft: hEarLeft,
     earRight: hEarRight,
     tail: hTail,
+    sound: whinnyMp3,
+    // The recording runs 2.24s, well past the three hops.
+    poseMs: 2400,
   },
   dragon: {
     name: 'Ryu',
@@ -106,89 +115,14 @@ const CASTS: Record<PetVariant, Cast> = {
     earRight: dHornRight,
     tail: dTail,
     extraOn: 'call',
-    wings: [dWingLeft, dWingRight],
+    sound: roarMp3,
+    // The recording runs 1.75s. Holding only for the hops would shut his jaw
+    // while he is still roaring.
+    poseMs: 1900,
+    limbs: [dLimbLeft, dLimbRight],
     flying: true,
     scene: 'city',
   },
-}
-
-/**
- * A short whinny. There is no horse recording bundled, and a cat meow coming
- * out of a horse would be worse than a synthesised one.
- */
-function whinny(): void {
-  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-  if (!Ctx) return
-  const ctx = new Ctx()
-  const now = ctx.currentTime
-  const osc = ctx.createOscillator()
-  const gain = ctx.createGain()
-  const vib = ctx.createOscillator()
-  const vibGain = ctx.createGain()
-
-  osc.type = 'sawtooth'
-  osc.frequency.setValueAtTime(760, now)
-  osc.frequency.exponentialRampToValueAtTime(360, now + 0.55)
-  // The warble is what makes it read as a horse rather than a slide whistle.
-  vib.frequency.setValueAtTime(26, now)
-  vibGain.gain.setValueAtTime(55, now)
-  vib.connect(vibGain).connect(osc.frequency)
-
-  gain.gain.setValueAtTime(0.0001, now)
-  gain.gain.exponentialRampToValueAtTime(0.16, now + 0.05)
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7)
-
-  osc.connect(gain).connect(ctx.destination)
-  osc.start(now)
-  vib.start(now)
-  osc.stop(now + 0.72)
-  vib.stop(now + 0.72)
-  window.setTimeout(() => void ctx.close(), 1000)
-}
-
-/**
- * A roar: a low growl under a band of noise, which is the fire. Same reason as
- * the whinny - no recording to bundle, and the meow would be absurd here.
- */
-function roar(): void {
-  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-  if (!Ctx) return
-  const ctx = new Ctx()
-  const now = ctx.currentTime
-
-  const osc = ctx.createOscillator()
-  const gain = ctx.createGain()
-  osc.type = 'sawtooth'
-  osc.frequency.setValueAtTime(150, now)
-  osc.frequency.exponentialRampToValueAtTime(70, now + 0.5)
-  osc.frequency.exponentialRampToValueAtTime(52, now + 0.9)
-  gain.gain.setValueAtTime(0.0001, now)
-  gain.gain.exponentialRampToValueAtTime(0.2, now + 0.08)
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.95)
-  osc.connect(gain).connect(ctx.destination)
-
-  // Two seconds of white noise, band-passed and swept: the breath of flame.
-  const frames = Math.floor(ctx.sampleRate * 0.9)
-  const buf = ctx.createBuffer(1, frames, ctx.sampleRate)
-  const data = buf.getChannelData(0)
-  for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1
-  const noise = ctx.createBufferSource()
-  noise.buffer = buf
-  const band = ctx.createBiquadFilter()
-  band.type = 'bandpass'
-  band.frequency.setValueAtTime(900, now)
-  band.frequency.exponentialRampToValueAtTime(320, now + 0.9)
-  band.Q.value = 0.8
-  const nGain = ctx.createGain()
-  nGain.gain.setValueAtTime(0.0001, now)
-  nGain.gain.exponentialRampToValueAtTime(0.09, now + 0.15)
-  nGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9)
-  noise.connect(band).connect(nGain).connect(ctx.destination)
-
-  osc.start(now)
-  noise.start(now)
-  osc.stop(now + 0.96)
-  window.setTimeout(() => void ctx.close(), 1300)
 }
 
 /**
@@ -339,20 +273,12 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
 
   const playSound = useCallback(() => {
     if (mutedRef.current) return
-    if (variant === 'horse') {
-      whinny()
-      return
-    }
-    if (variant === 'dragon') {
-      roar()
-      return
-    }
     const a = audioRef.current
     if (!a) return
     a.currentTime = 0
     // Autoplay can reject before any user gesture; a silent pet is fine.
     void a.play().catch(() => undefined)
-  }, [variant])
+  }, [])
 
   /** Restart a CSS animation class that may already be applied. */
   const restart = (el: HTMLElement | null, cls: string): void => {
@@ -369,12 +295,13 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
     setFace({ head: cast.headOpen, eyes: cast.eyesOpen, mouth: true, tongue: cast.extraOn === 'call' })
     restart(catRef.current, 'meow')
     window.clearTimeout(poseTimer.current)
-    // Hold the pose through all three hops (3 x 0.42s).
+    // Hold the pose through all three hops (3 x 0.42s), or longer if the
+    // cast's voice outlasts them.
     poseTimer.current = window.setTimeout(() => {
       catRef.current?.classList.remove('meow')
       idleFace()
       busyRef.current = false
-    }, 1350)
+    }, cast.poseMs ?? 1350)
   }, [wakeUp, playSound, idleFace, cast])
 
   const showHappy = useCallback(
@@ -502,7 +429,7 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
 
   return (
     <div className="kroks" ref={rootRef}>
-      <audio ref={audioRef} src={meowMp3} preload="auto" />
+      <audio ref={audioRef} src={cast.sound ?? meowMp3} preload="auto" />
 
       <div className="kroks-stage">
         {cast.scene === 'city' && <City />}
@@ -527,10 +454,10 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
           title={sleeping ? `${cast.name} is napping. Click to wake him.` : `Click to pet ${cast.name}`}
         >
           <div className="kroks-stack">
-            {cast.wings && (
+            {cast.limbs && (
               <>
-                <img className="kroks-layer kroks-wing-l" src={cast.wings[0]} draggable={false} alt="" />
-                <img className="kroks-layer kroks-wing-r" src={cast.wings[1]} draggable={false} alt="" />
+                <img className="kroks-layer kroks-limb-l" src={cast.limbs[0]} draggable={false} alt="" />
+                <img className="kroks-layer kroks-limb-r" src={cast.limbs[1]} draggable={false} alt="" />
               </>
             )}
             <img className="kroks-layer kroks-tail" src={cast.tail} draggable={false} alt="" />

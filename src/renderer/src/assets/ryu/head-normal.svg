@@ -1,16 +1,16 @@
-<svg width="1152" height="1440" viewBox="0 0 1152 1440" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
-<rect x="384" y="336" width="384" height="288" fill="#d13a4a"/>
-<rect x="384" y="336" width="384" height="48" fill="#8f2130"/>
-<rect x="552" y="288" width="48" height="48" fill="#f7d488"/>
-<rect x="336" y="432" width="48" height="144" fill="#8f2130"/>
-<rect x="768" y="432" width="48" height="144" fill="#8f2130"/>
-<rect x="480" y="576" width="192" height="144" fill="#f0748a"/>
-<rect x="480" y="576" width="192" height="24" fill="#c1263a"/>
-<rect x="504" y="624" width="48" height="24" fill="#8f2130"/>
-<rect x="600" y="624" width="48" height="24" fill="#8f2130"/>
-<rect x="504" y="696" width="144" height="24" fill="#8f2130"/>
-<rect x="336" y="648" width="144" height="24" fill="#f7d488"/>
-<rect x="312" y="672" width="24" height="72" fill="#f7d488"/>
-<rect x="672" y="648" width="144" height="24" fill="#f7d488"/>
-<rect x="816" y="672" width="24" height="72" fill="#f7d488"/>
+<svg width="2400" height="1440" viewBox="0 0 2400 1440" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">
+<rect x="1632" y="432" width="336" height="264" fill="#d13a4a"/>
+<rect x="1632" y="432" width="336" height="48" fill="#8f2130"/>
+<rect x="1968" y="528" width="192" height="144" fill="#d13a4a"/>
+<rect x="1968" y="528" width="192" height="24" fill="#8f2130"/>
+<rect x="1968" y="624" width="192" height="24" fill="#8f2130"/>
+<rect x="1992" y="648" width="168" height="24" fill="#f0748a"/>
+<rect x="2112" y="552" width="24" height="24" fill="#8f2130"/>
+<rect x="1752" y="672" width="216" height="24" fill="#8f2130"/>
+<rect x="2112" y="504" width="96" height="24" fill="#f7d488"/>
+<rect x="2208" y="456" width="96" height="24" fill="#f7d488"/>
+<rect x="2304" y="432" width="72" height="24" fill="#f7d488"/>
+<rect x="1992" y="672" width="96" height="24" fill="#f7d488"/>
+<rect x="2064" y="696" width="72" height="24" fill="#f7d488"/>
+<rect x="2112" y="720" width="48" height="72" fill="#f7d488"/>
 </svg>
