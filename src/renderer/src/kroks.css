@@ -146,6 +146,16 @@
   75% { transform: translateY(-7px) scaleY(1.02); }
   100% { transform: translateY(0) scaleY(1); }
 }
+/* A flyer darts instead of hopping. The hop climbs 22px, which puts the horns
+   above the stage and clips them, and a hop off thin air reads wrong anyway. */
+.kroks-cat.is-flying.meow { animation: kroks-swoop 0.42s ease 3; }
+@keyframes kroks-swoop {
+  0% { transform: translate(0, 0); }
+  30% { transform: translate(8px, -5px); }
+  55% { transform: translate(-5px, 2px); }
+  75% { transform: translate(4px, -2px); }
+  100% { transform: translate(0, 0); }
+}
 
 /* Petting / wake wiggle. */
 .kroks-cat.happy .kroks-stack { animation: kroks-wiggle 0.5s ease; }
@@ -209,11 +219,147 @@
 }
 .kroks-mute:hover { color: var(--text); }
 
+/* ---- the dragon ---------------------------------------------------------
+   Ryu is drawn into the same coordinate scaffold as the cat, so the shared
+   layer rules mostly hold. Only what genuinely differs is overridden, and
+   always scoped to .is-dragon rather than edited in place. */
+
+/* The tail leaves the body a little further in and higher than the cat's. */
+.kroks-cat.is-dragon .kroks-tail {
+  transform-origin: 25% 70%;
+  animation: kroks-tail-swim 2.4s ease-in-out infinite;
+}
+@keyframes kroks-tail-swim {
+  0%, 100% { transform: rotate(-9deg); }
+  50% { transform: rotate(9deg); }
+}
+.kroks-cat.is-dragon.excited .kroks-tail { animation-duration: 0.8s; }
+
+/* Horns twitch far less than ears do; they are bone. */
+.kroks-cat.is-dragon .kroks-ear-l,
+.kroks-cat.is-dragon .kroks-ear-r { animation: none; }
+
+/* Wings sit behind everything else in the stack and beat continuously: this
+   pet is airborne, so they never stop, they only change tempo. */
+.kroks-wing-l,
+.kroks-wing-r {
+  z-index: -1;
+  animation: kroks-flap-l 1.1s ease-in-out infinite;
+}
+/* The origin is the shoulder the membrane hangs off, at (336, 840) on the
+   1152x1440 grid. Get this wrong and the wing paddles instead of beating. */
+.kroks-wing-l { transform-origin: 29% 58%; }
+.kroks-wing-r { transform-origin: 71% 58%; animation-name: kroks-flap-r; }
+@keyframes kroks-flap-l {
+  0%, 100% { transform: rotate(-11deg) scaleY(0.9); }
+  50% { transform: rotate(13deg) scaleY(1.06); }
+}
+@keyframes kroks-flap-r {
+  0%, 100% { transform: rotate(11deg) scaleY(0.9); }
+  50% { transform: rotate(-13deg) scaleY(1.06); }
+}
+.kroks-cat.excited .kroks-wing-l,
+.kroks-cat.excited .kroks-wing-r { animation-duration: 0.5s; }
+/* Asleep, he glides: the beat slows right down rather than stopping, which
+   would drop him out of the sky. */
+.kroks-cat.state-sleep .kroks-wing-l,
+.kroks-cat.state-sleep .kroks-wing-r { animation-duration: 3.4s; }
+
+/* Hovering replaces breathing. It rides on .kroks-stack, the same element the
+   happy wiggle claims, so a wiggle briefly interrupts the hover - half a
+   second, and the wings carry the motion meanwhile. */
+.kroks-cat.is-flying { margin-bottom: 8px; }
+.kroks-cat.is-flying .kroks-stack { animation: kroks-hover 2.6s ease-in-out infinite; }
+.kroks-cat.is-flying.state-sleep .kroks-stack { animation: kroks-hover 4.6s ease-in-out infinite; }
+@keyframes kroks-hover {
+  0%, 100% { transform: translateY(0) rotate(-1.2deg); }
+  50% { transform: translateY(-7px) rotate(1.2deg); }
+}
+
+/* ---- the neon city ------------------------------------------------------
+   Its own night sky, deliberately. The backdrop has to hold up under the two
+   light Tokyo flavors as well as the dark ones, so it does not read theme
+   variables - a dragon over a cream-coloured city is not the ask. */
+
+.kroks-city {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #07060f 0%, #16112b 46%, #3a0f37 100%);
+}
+.kroks-city-moon {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #f7d488;
+  box-shadow: 0 0 12px 2px rgba(247, 212, 136, 0.45);
+  opacity: 0.75;
+}
+.kroks-city-band {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 200%;
+  display: flex;
+  animation: kroks-city-scroll 16s linear infinite;
+}
+.kroks-city-tile { position: relative; flex: 0 0 50%; height: 100%; }
+/* One tile of travel, then it loops. The band is exactly two tiles wide, so
+   -50% lands the second tile where the first was and the seam never shows. */
+@keyframes kroks-city-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.kroks-city-far {
+  height: 52%;
+  opacity: 0.45;
+  filter: blur(0.4px);
+  animation-duration: 34s;
+}
+.kroks-city-near { height: 78%; animation-duration: 17s; }
+
+.kroks-b {
+  position: absolute;
+  bottom: 0;
+  background-color: #0c0a1a;
+  /* Lit windows, as a dot grid. One element per window would be hundreds. */
+  background-image: radial-gradient(var(--neon) 0.5px, transparent 1.2px);
+  background-size: 5px 6px;
+  border-top: 1px solid var(--neon);
+  box-shadow: 0 0 8px -2px var(--neon);
+}
+.kroks-b.is-flicker { animation: kroks-neon-flicker 4.2s steps(1, end) infinite; }
+@keyframes kroks-neon-flicker {
+  0%, 46%, 52%, 100% { opacity: 1; }
+  48% { opacity: 0.62; }
+  50% { opacity: 0.9; }
+}
+.kroks-city-haze {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 46%;
+  background: linear-gradient(180deg, rgba(244, 114, 182, 0) 0%, rgba(244, 114, 182, 0.18) 65%, rgba(125, 211, 252, 0.22) 100%);
+  pointer-events: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .kroks-stack,
   .kroks-head-group,
   .kroks-tail,
   .kroks-ear-l,
   .kroks-ear-r,
+  .kroks-wing-l,
+  .kroks-wing-r,
+  .kroks-city-band,
+  .kroks-b.is-flicker,
   .kroks-shadow { animation: none; }
+  /* Wings frozen mid-beat rather than folded flat, so he still reads as flying. */
+  .kroks-wing-l { transform: rotate(-6deg); }
+  .kroks-wing-r { transform: rotate(6deg); }
 }

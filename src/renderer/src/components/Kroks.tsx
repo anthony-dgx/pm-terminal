@@ -22,13 +22,50 @@ import hTeeth from '../assets/rodeo/teeth.svg'
 import hEarLeft from '../assets/rodeo/ear-left.svg'
 import hEarRight from '../assets/rodeo/ear-right.svg'
 import hTail from '../assets/rodeo/tail.svg'
+import dBody from '../assets/ryu/body.svg'
+import dHeadNormal from '../assets/ryu/head-normal.svg'
+import dHeadOpen from '../assets/ryu/head-open.svg'
+import dEyesOpen from '../assets/ryu/eyes-open.svg'
+import dEyesClosed from '../assets/ryu/eyes-closed.svg'
+import dMouth from '../assets/ryu/mouth-open.svg'
+import dFlame from '../assets/ryu/flame.svg'
+import dHornLeft from '../assets/ryu/horn-left.svg'
+import dHornRight from '../assets/ryu/horn-right.svg'
+import dTail from '../assets/ryu/tail.svg'
+import dWingLeft from '../assets/ryu/wing-left.svg'
+import dWingRight from '../assets/ryu/wing-right.svg'
 import '../kroks.css'
 
+interface Cast {
+  name: string
+  body: string
+  headNormal: string
+  headOpen: string
+  eyesOpen: string
+  eyesClosed: string
+  mouth: string
+  /** Tongue, teeth, fire: the one extra layer a pose can add. */
+  extra: string
+  earLeft: string
+  earRight: string
+  tail: string
+  /** Which pose shows `extra`. Fire belongs to the roar, a tongue to the wiggle. */
+  extraOn?: 'happy' | 'call'
+  /** Behind the body, flapping. Only a flyer has them. */
+  wings?: [string, string]
+  /** A flyer hovers instead of standing, so it drops the ground shadow. */
+  flying?: boolean
+  /** Backdrop painted behind the pet. */
+  scene?: 'city'
+}
+
+export type PetVariant = 'cat' | 'horse' | 'dragon'
+
 /**
- * Two casts share one rig. The paper-doll layers, timings and animations are
- * identical; only the artwork and the voice differ.
+ * Three casts share one rig. The paper-doll layers, timings and animations are
+ * identical; only the artwork, the voice, and a few optional layers differ.
  */
-const CASTS = {
+const CASTS: Record<PetVariant, Cast> = {
   cat: {
     name: 'Kroks',
     body,
@@ -55,9 +92,25 @@ const CASTS = {
     earRight: hEarRight,
     tail: hTail,
   },
-} as const
-
-export type PetVariant = keyof typeof CASTS
+  dragon: {
+    name: 'Ryu',
+    body: dBody,
+    headNormal: dHeadNormal,
+    headOpen: dHeadOpen,
+    eyesOpen: dEyesOpen,
+    eyesClosed: dEyesClosed,
+    mouth: dMouth,
+    extra: dFlame,
+    // The horns sit in the ear slots, so poking one still lands on it.
+    earLeft: dHornLeft,
+    earRight: dHornRight,
+    tail: dTail,
+    extraOn: 'call',
+    wings: [dWingLeft, dWingRight],
+    flying: true,
+    scene: 'city',
+  },
+}
 
 /**
  * A short whinny. There is no horse recording bundled, and a cat meow coming
@@ -94,6 +147,51 @@ function whinny(): void {
 }
 
 /**
+ * A roar: a low growl under a band of noise, which is the fire. Same reason as
+ * the whinny - no recording to bundle, and the meow would be absurd here.
+ */
+function roar(): void {
+  const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+  if (!Ctx) return
+  const ctx = new Ctx()
+  const now = ctx.currentTime
+
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.type = 'sawtooth'
+  osc.frequency.setValueAtTime(150, now)
+  osc.frequency.exponentialRampToValueAtTime(70, now + 0.5)
+  osc.frequency.exponentialRampToValueAtTime(52, now + 0.9)
+  gain.gain.setValueAtTime(0.0001, now)
+  gain.gain.exponentialRampToValueAtTime(0.2, now + 0.08)
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.95)
+  osc.connect(gain).connect(ctx.destination)
+
+  // Two seconds of white noise, band-passed and swept: the breath of flame.
+  const frames = Math.floor(ctx.sampleRate * 0.9)
+  const buf = ctx.createBuffer(1, frames, ctx.sampleRate)
+  const data = buf.getChannelData(0)
+  for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1
+  const noise = ctx.createBufferSource()
+  noise.buffer = buf
+  const band = ctx.createBiquadFilter()
+  band.type = 'bandpass'
+  band.frequency.setValueAtTime(900, now)
+  band.frequency.exponentialRampToValueAtTime(320, now + 0.9)
+  band.Q.value = 0.8
+  const nGain = ctx.createGain()
+  nGain.gain.setValueAtTime(0.0001, now)
+  nGain.gain.exponentialRampToValueAtTime(0.09, now + 0.15)
+  nGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9)
+  noise.connect(band).connect(nGain).connect(ctx.destination)
+
+  osc.start(now)
+  noise.start(now)
+  osc.stop(now + 0.96)
+  window.setTimeout(() => void ctx.close(), 1300)
+}
+
+/**
  * Kroks, ported from Lab/black-cat-pet. Same paper-doll layers and idle
  * behaviour, but anchored into the sidebar instead of a floating always-on-top
  * window: no dragging, no click-through, no tray, no hook server. Reactions are
@@ -111,6 +209,61 @@ interface Props {
   working: boolean
   /** Which cast to render. The cowboy theme swaps in the horse. */
   variant?: PetVariant
+}
+
+/**
+ * One tile of skyline, in percentages of the tile. Two tiles side by side make
+ * a band, and the band scrolls exactly one tile before looping, so the seam
+ * never shows. Buildings are plain divs; the windows are a dot grid painted by
+ * a radial-gradient rather than one element each.
+ */
+const SKYLINE: { left: number; width: number; height: number; neon: string }[] = [
+  { left: 1, width: 13, height: 46, neon: '#7dd3fc' },
+  { left: 15, width: 9, height: 72, neon: '#f472b6' },
+  { left: 25, width: 16, height: 34, neon: '#5eead4' },
+  { left: 42, width: 11, height: 60, neon: '#a78bfa' },
+  { left: 54, width: 8, height: 88, neon: '#f472b6' },
+  { left: 63, width: 14, height: 40, neon: '#7dd3fc' },
+  { left: 78, width: 10, height: 66, neon: '#5eead4' },
+  { left: 89, width: 10, height: 52, neon: '#a78bfa' },
+]
+
+function CityTile({ scale }: { scale: number }): React.ReactElement {
+  return (
+    <div className="kroks-city-tile">
+      {SKYLINE.map((b, i) => (
+        <div
+          key={i}
+          className={`kroks-b ${i % 3 === 0 ? 'is-flicker' : ''}`}
+          style={{
+            left: `${b.left}%`,
+            width: `${b.width}%`,
+            height: `${b.height * scale}%`,
+            // Consumed by the window dots, the roof line and the halo.
+            ['--neon' as string]: b.neon,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+/** The neon city the dragon flies through. Two parallax bands, no assets. */
+function City(): React.ReactElement {
+  return (
+    <div className="kroks-city" aria-hidden="true">
+      <div className="kroks-city-moon" />
+      <div className="kroks-city-band kroks-city-far">
+        <CityTile scale={0.62} />
+        <CityTile scale={0.62} />
+      </div>
+      <div className="kroks-city-band kroks-city-near">
+        <CityTile scale={1} />
+        <CityTile scale={1} />
+      </div>
+      <div className="kroks-city-haze" />
+    </div>
+  )
 }
 
 export function Kroks({ reaction, working, variant = 'cat' }: Props): React.ReactElement {
@@ -149,10 +302,12 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
     setFace({ head: cast.headNormal, eyes: cast.eyesOpen, mouth: false, tongue: false })
   }, [cast])
 
-  // Swapping cast mid-run must not leave the previous animal's face behind.
+  // Swapping cast mid-run must not leave the previous animal's face behind. A
+  // napping pet keeps napping through it rather than snapping awake.
   useEffect(() => {
-    idleFace()
-  }, [idleFace])
+    if (sleepingRef.current) setFace({ head: cast.headOpen, eyes: cast.eyesClosed, mouth: false, tongue: false })
+    else idleFace()
+  }, [idleFace, cast])
 
   // ---- sleep / wake ------------------------------------------------------
 
@@ -188,6 +343,10 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
       whinny()
       return
     }
+    if (variant === 'dragon') {
+      roar()
+      return
+    }
     const a = audioRef.current
     if (!a) return
     a.currentTime = 0
@@ -207,7 +366,7 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
     wakeUp()
     playSound()
     busyRef.current = true
-    setFace({ head: cast.headOpen, eyes: cast.eyesOpen, mouth: true, tongue: false })
+    setFace({ head: cast.headOpen, eyes: cast.eyesOpen, mouth: true, tongue: cast.extraOn === 'call' })
     restart(catRef.current, 'meow')
     window.clearTimeout(poseTimer.current)
     // Hold the pose through all three hops (3 x 0.42s).
@@ -225,7 +384,8 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
         head: cast.headNormal,
         eyes: opts.closedEyes ? cast.eyesClosed : cast.eyesOpen,
         mouth: false,
-        tongue: true,
+        // A cat's tongue is a happy face; a jet of fire is not.
+        tongue: cast.extraOn !== 'call',
       })
       restart(catRef.current, 'happy')
       if (opts.heart) {
@@ -268,7 +428,7 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
       blinkTimer = window.setTimeout(
         () => {
           if (!busyRef.current && !sleepingRef.current) {
-            setFace((f) => ({ ...f, eyes: eyesClosed }))
+            setFace((f) => ({ ...f, eyes: cast.eyesClosed }))
             window.setTimeout(() => {
               if (!busyRef.current && !sleepingRef.current) setFace((f) => ({ ...f, eyes: cast.eyesOpen }))
             }, 150)
@@ -345,6 +505,7 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
       <audio ref={audioRef} src={meowMp3} preload="auto" />
 
       <div className="kroks-stage">
+        {cast.scene === 'city' && <City />}
         {floaters.map((f) =>
           f.kind === 'heart' ? (
             <img key={f.id} className="kroks-heart" src={heartSvg} style={{ left: `${f.left}%` }} alt="" />
@@ -357,13 +518,21 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
 
         <div
           ref={catRef}
-          className={`kroks-cat ${sleeping ? 'state-sleep' : ''} ${working && !sleeping ? 'excited' : ''}`}
+          className={`kroks-cat is-${variant} ${cast.flying ? 'is-flying' : ''} ${sleeping ? 'state-sleep' : ''} ${
+            working && !sleeping ? 'excited' : ''
+          }`}
           onClick={onPet}
           onMouseMove={onMove}
           onMouseLeave={onLeave}
           title={sleeping ? `${cast.name} is napping. Click to wake him.` : `Click to pet ${cast.name}`}
         >
           <div className="kroks-stack">
+            {cast.wings && (
+              <>
+                <img className="kroks-layer kroks-wing-l" src={cast.wings[0]} draggable={false} alt="" />
+                <img className="kroks-layer kroks-wing-r" src={cast.wings[1]} draggable={false} alt="" />
+              </>
+            )}
             <img className="kroks-layer kroks-tail" src={cast.tail} draggable={false} alt="" />
             <img className="kroks-layer" src={cast.body} draggable={false} alt="" />
             <div className="kroks-head-group">
@@ -391,7 +560,9 @@ export function Kroks({ reaction, working, variant = 'cat' }: Props): React.Reac
           </div>
           <div className="kroks-ear-hot kroks-ear-hot-l" onClick={pokeEar('l')} />
           <div className="kroks-ear-hot kroks-ear-hot-r" onClick={pokeEar('r')} />
-          <img className="kroks-shadow" src={shadow} draggable={false} alt="" />
+          {/* Nothing to cast a shadow onto when the pet is airborne, and the
+              city would paint over it anyway. */}
+          {!cast.flying && <img className="kroks-shadow" src={shadow} draggable={false} alt="" />}
         </div>
       </div>
 

@@ -97,7 +97,7 @@ export const THEMES: ThemeDef[] = [
     // theme to this group - which is a submenu, not something selectable.
     id: 'tokyo',
     name: 'Tokyo Night',
-    note: 'Pick a flavor',
+    note: 'Pick a flavor, dragon included',
     swatch: ['#1a1b26', '#7AA2F7'],
     flavors: [
       { id: 'tokyo-night', name: 'Night', note: 'The original, dark', swatch: ['#1a1b26', '#7AA2F7'] },

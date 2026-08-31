@@ -1039,7 +1039,7 @@ export function App(): React.ReactElement {
             <Kroks
               reaction={kroks}
               working={conv.awaiting}
-              variant={theme.startsWith('cowboy') ? 'horse' : 'cat'}
+              variant={theme.startsWith('tokyo') ? 'dragon' : theme.startsWith('cowboy') ? 'horse' : 'cat'}
             />
           </div>
         </div>

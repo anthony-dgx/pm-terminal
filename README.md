@@ -89,7 +89,8 @@ says so and offers Claude models only.
 Cowboy each have four variants.
 
 **Small comforts.** Paste or drop images straight into the message box. A pixel pet reacts to what
-the agent is doing. A music player for background lofi, which never starts on its own.
+the agent is doing, and the theme picks which one: a cat by default, a horse on Cowboy, and on
+Tokyo Night a red dragon flying over a neon city. A music player for background lofi, which never starts on its own.
 
 ## Getting started
 
