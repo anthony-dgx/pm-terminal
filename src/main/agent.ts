@@ -10,6 +10,7 @@ import { isGatewayModel } from '../shared/gateway.js'
 import {
   query,
   type Query,
+  type PermissionMode,
   type SDKMessage,
   type SDKUserMessage,
   type PermissionResult,
@@ -163,7 +164,12 @@ export interface SessionOptions {
   cwd: string
   model?: string
   resume?: string
-  permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan'
+  /**
+   * Taken straight from the SDK rather than restated, because the list grows:
+   * `'auto'` and `'dontAsk'` were both added after this app first spelled it out
+   * by hand, and Auto-mode is `'auto'`.
+   */
+  permissionMode?: PermissionMode
   /** Id of the agent profile to apply; resolved to a prompt in the main process. */
   profileId?: string | null
   /** Resolved profile text, appended to Claude Code's system prompt. */
@@ -339,6 +345,30 @@ export class AgentSession {
     })
   }
 
+  /**
+   * Switch this session between asking and Auto-mode, without restarting it.
+   *
+   * Written to `opts` as well as pushed to the live query: `opts` is what
+   * `start()` reads, so a session that has not sent its first message yet - and
+   * one that is later restarted by `session:clear` - picks up the same mode. The
+   * SDK's setter only exists in streaming input mode, which is what the
+   * `PromptQueue` makes this, and only once the query has been built.
+   */
+  async setPermissionMode(mode: PermissionMode): Promise<void> {
+    this.opts = { ...this.opts, permissionMode: mode }
+    try {
+      await this.q?.setPermissionMode(mode)
+    } catch (err) {
+      // A refused switch must not take the app down with it. The next start
+      // reads `opts`, so the setting is not lost either.
+      this.emit({
+        type: 'notice',
+        level: 'warn',
+        text: `Could not switch permission mode: ${err instanceof Error ? err.message : String(err)}`,
+      })
+    }
+  }
+
   /** Called from IPC when the user clicks allow/deny in the renderer. */
   answerPermission(id: string, answer: PermissionAnswer): void {
     const pending = this.permissions.get(id)
@@ -406,6 +436,23 @@ export class AgentSession {
           }
           this.emit({ type: 'session', info: this.info })
           this.emit({ type: 'inspector-dirty' })
+        }
+        /*
+         * A tool refused without ever reaching a person: the Auto-mode
+         * classifier said no, or a deny rule matched. There is no permission
+         * prompt for these - the SDK short-circuits `canUseTool` - so if this is
+         * dropped the user sees a tool fail for no stated reason, which is worse
+         * than not having Auto-mode at all. Surfaced as a warning notice, the
+         * same channel stderr already uses.
+         */
+        if ('subtype' in msg && msg.subtype === 'permission_denied') {
+          const why = msg.decision_reason || msg.message
+          const who = msg.decision_reason_type === 'classifier' ? 'Auto-mode blocked' : 'Blocked'
+          this.emit({
+            type: 'notice',
+            level: 'warn',
+            text: `${who} ${msg.tool_name}${why ? `: ${why}` : ''}`,
+          })
         }
         break
       }

@@ -86,6 +86,13 @@ Pick one and the session runs on it. Nothing to configure here: the list is read
 own config, so a model added or removed there just appears or goes. Without the proxy the picker
 says so and offers Claude models only.
 
+**Auto-mode.** `Cmd+,` opens Settings, which holds one switch. With it on, sessions run on Claude
+Code's `auto` permission mode: a model classifier reviews each tool call and accepts it for you
+instead of stopping on a prompt. It is a review, not a bypass - anything it will not vouch for
+still comes to you as the usual permission card, and anything it refuses outright is reported as a
+warning above the message box, so a tool never just fails in silence. The setting is app-wide and
+applies to sessions already open, so there is nothing to restart.
+
 **Themes.** Default, [Catppuccin](https://catppuccin.com/), Cowboy and Dracula. Catppuccin and
 Cowboy each have four variants.
 
@@ -126,6 +133,7 @@ A few things worth knowing:
 | `Cmd+T` | New session |
 | `Cmd+K` | Jump to a session |
 | `Cmd+G` | New group |
+| `Cmd+,` | Settings |
 | `Cmd+B` | Show or hide the sessions panel |
 | `Cmd+I` | Show or hide the side panel |
 | `Enter` | Send |

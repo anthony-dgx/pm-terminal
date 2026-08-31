@@ -18,6 +18,7 @@ import { Player } from './components/Player.js'
 import { ModelPicker } from './components/ModelPicker.js'
 import { Composer } from './components/Composer.js'
 import { ProfilePicker } from './components/Profiles.js'
+import { Settings } from './components/Settings.js'
 import { Switcher, type SwitcherItem } from './components/Switcher.js'
 import { Thinking, phaseOf } from './components/Thinking.js'
 import { ThemePicker } from './components/ThemePicker.js'
@@ -164,6 +165,13 @@ export function App(): React.ReactElement {
   // Bumped to ask the sidebar to create a group; it owns the group state.
   const [newGroupSignal, setNewGroupSignal] = useState(0)
   const [switcherOpen, setSwitcherOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  /**
+   * Auto-mode. Held here rather than inside the settings page so the page can be
+   * closed and reopened without re-reading it, and so the state survives while
+   * main pushes the new mode into every live session.
+   */
+  const [autoMode, setAutoMode] = useState(false)
   /**
    * Tokens, cost and context per conversation.
    *
@@ -233,6 +241,7 @@ export function App(): React.ReactElement {
       inspectorPrefRef.current = e.inspectorOpen
       sidebarPrefRef.current = e.sidebarOpen
       setTheme(e.theme)
+      setAutoMode(e.autoMode)
       const first = blankConversation({
         cwd: e.defaultCwd,
         model: e.defaultModel,
@@ -371,6 +380,13 @@ export function App(): React.ReactElement {
   const chooseTheme = useCallback((next: string) => {
     setTheme(next)
     void desk.setTheme(next)
+  }, [])
+
+  const chooseAutoMode = useCallback((on: boolean) => {
+    setAutoMode(on)
+    // Main saves it and pushes the mode into every live session, so nothing
+    // here needs to touch the conversations.
+    void desk.setAutoMode(on)
   }, [])
 
   useEffect(() => {
@@ -552,6 +568,12 @@ export function App(): React.ReactElement {
           e.preventDefault()
           // Toggle, so the same keystroke that opened it puts it away.
           setSwitcherOpen((o) => !o)
+          break
+        // The Mac convention. `e.key` for comma is ',' either way, so
+        // toLowerCase leaves it alone.
+        case ',':
+          e.preventDefault()
+          setSettingsOpen((o) => !o)
           break
         case 'g':
           e.preventDefault()
@@ -974,6 +996,16 @@ export function App(): React.ReactElement {
             onChange={(id) => patch(activeId, (c) => ({ ...c, profileId: id }))}
           />
           <ThemePicker current={theme} onChange={chooseTheme} />
+          {/* The app installs no custom menu bar, so Cmd+, has nowhere to be
+              advertised. Without a button the page is unfindable. */}
+          <button
+            className="theme-btn"
+            onClick={() => setSettingsOpen(true)}
+            title="Settings (⌘,)"
+            aria-label="Settings"
+          >
+            ⚙
+          </button>
           {conv.awaiting && (
             <button className="btn btn-deny" onClick={stop}>
               Stop
@@ -988,6 +1020,14 @@ export function App(): React.ReactElement {
           onPick={pickSession}
           onClose={() => setSwitcherOpen(false)}
           home={env.home}
+        />
+      )}
+
+      {settingsOpen && (
+        <Settings
+          autoMode={autoMode}
+          onAutoMode={chooseAutoMode}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
 

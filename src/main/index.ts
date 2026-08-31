@@ -210,6 +210,10 @@ function registerIpc(): void {
     sessions.get(clientId)?.session.dispose()
     const resolved: SessionOptions = {
       ...opts,
+      // Auto-mode is a single app-wide preference, so it is read here rather
+      // than threaded through every renderer call site: two of those exist and
+      // a third would forget. An explicit mode from the caller still wins.
+      permissionMode: opts.permissionMode ?? ((await readPrefs()).autoMode ? 'auto' : undefined),
       profilePrompt: (await profilePrompt(opts.profileId)) ?? undefined,
     }
     const session = new AgentSession(resolved, emitterFor(clientId))
@@ -411,6 +415,27 @@ function registerIpc(): void {
   ipcMain.handle('ui:setSidebarOpen', (_e, open: boolean) => writePrefs({ sidebarOpen: open }))
   ipcMain.handle('ui:setTheme', (_e, theme: string) => writePrefs({ theme }))
 
+  /**
+   * Turn Auto-mode on or off everywhere at once.
+   *
+   * The setting is app-wide, so it applies to sessions already running, not just
+   * the next one. Each live session gets the mode pushed into its query, which
+   * is why nothing has to be restarted for the change to take.
+   */
+  ipcMain.handle('ui:setAutoMode', async (_e, on: boolean) => {
+    await writePrefs({ autoMode: on })
+    const mode = on ? 'auto' : 'default'
+    await Promise.all(
+      [...sessions.entries()].map(async ([clientId, entry]) => {
+        // The recorded options are what `session:clear` rebuilds from, so they
+        // have to move with the live session or clearing the context would
+        // quietly put the old mode back.
+        sessions.set(clientId, { ...entry, opts: { ...entry.opts, permissionMode: mode } })
+        await entry.session.setPermissionMode(mode)
+      }),
+    )
+  })
+
   ipcMain.handle('player:read', () => readPlayer())
   ipcMain.handle('player:write', (_e, next: { url?: string; volume?: number }) => writePlayer(next))
 
@@ -464,6 +489,7 @@ function registerIpc(): void {
     inspectorOpen: (await readPrefs()).inspectorOpen ?? true,
     sidebarOpen: (await readPrefs()).sidebarOpen ?? true,
     theme: (await readPrefs()).theme ?? 'default',
+    autoMode: (await readPrefs()).autoMode ?? false,
     claudePath: resolveClaudeExecutable() ?? null,
   }))
 }

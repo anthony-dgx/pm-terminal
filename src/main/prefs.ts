@@ -14,6 +14,13 @@ interface Prefs {
   theme?: string
   player?: { url?: string; volume?: number }
   /**
+   * Auto-mode: run sessions on the SDK's `'auto'` permission mode, where a
+   * model classifier reviews each tool call instead of stopping on the user.
+   * A flat boolean rather than an object, so `writePrefs`' shallow merge is
+   * enough and no accessor pair is needed.
+   */
+  autoMode?: boolean
+  /**
    * The last update check, so the automatic one can run at most once a day.
    * Keyed by the commit it describes: a result saved by a previous build says
    * nothing about the one running now.
