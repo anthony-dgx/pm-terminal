@@ -99,6 +99,32 @@ function resolveLoginPath(): string | undefined {
 }
 
 /**
+ * Say which backend refused, when a backend refuses.
+ *
+ * A gateway session's failures do not come from Anthropic: they come from the
+ * Datadog AI Gateway, whose quota is shared with everyone else on the same POC
+ * and which returns 429 long before your own account would. The CLI's message
+ * says "rate limit" and nothing about where, so the app reported what looked
+ * like Claude throttling you and the only way to tell the difference was to read
+ * 276MB of proxy log. A 500 has the same problem for the opposite reason: the
+ * local proxy failing to resolve the gateway host looks identical to Claude
+ * being down.
+ *
+ * Prefixing is all this does. The CLI's own text is kept, because it carries the
+ * retry-after and the request id.
+ */
+function nameTheBackend(text: string, model: string | null | undefined): string {
+  if (!isGatewayModel(model)) return text
+  const rateLimited = /\b429\b|rate.?limit|too many requests/i.test(text)
+  const unavailable = /\b5\d\d\b|internal server error|nodename nor servname|econnrefused/i.test(
+    text,
+  )
+  if (rateLimited) return `Datadog AI Gateway rate limit (shared quota, not your Claude account) - ${text}`
+  if (unavailable) return `Datadog AI Gateway proxy failed, not Claude - ${text}`
+  return text
+}
+
+/**
  * Async iterable the SDK pulls user messages from. Streaming-input mode is
  * required for `canUseTool` to work, so every session uses it even for the
  * first prompt.
@@ -300,7 +326,12 @@ export class AgentSession {
         includePartialMessages: true,
         canUseTool: this.handlePermission,
         stderr: (data) => {
-          if (data.trim()) this.emit({ type: 'notice', level: 'warn', text: data.trim() })
+          if (data.trim())
+            this.emit({
+              type: 'notice',
+              level: 'warn',
+              text: nameTheBackend(data.trim(), this.opts.model),
+            })
         },
       },
     })
@@ -416,7 +447,8 @@ export class AgentSession {
       }
       this.setStatus('closed')
     } catch (err) {
-      this.setStatus('error', err instanceof Error ? err.message : String(err))
+      const text = err instanceof Error ? err.message : String(err)
+      this.setStatus('error', nameTheBackend(text, this.opts.model))
     } finally {
       this.pumping = false
     }
@@ -526,6 +558,24 @@ export class AgentSession {
           outputTokens: this.tally.outputTokens + (msg.usage?.output_tokens ?? 0),
           cacheReadTokens: this.tally.cacheReadTokens + (msg.usage?.cache_read_input_tokens ?? 0),
           turns: msg.num_turns ?? this.tally.turns,
+        }
+        /*
+         * A backend failure lands here, not in the pump's `catch`. The CLI
+         * retries a 429 itself and reports the outcome on the result message, so
+         * this case reading the tally and dropping everything else is why a
+         * gateway rate limit showed up as a turn that simply stopped, with no
+         * reason anywhere in the UI. `api_error_status` carries the HTTP status
+         * directly; `errors` carries the text on the error-shaped variant.
+         */
+        const apiStatus = 'api_error_status' in msg ? msg.api_error_status : null
+        const failures = msg.subtype === 'success' ? [] : msg.errors
+        if (msg.is_error || apiStatus || failures.length) {
+          const detail = failures.join('; ') || (apiStatus ? `HTTP ${apiStatus}` : msg.subtype)
+          this.emit({
+            type: 'notice',
+            level: 'warn',
+            text: nameTheBackend(detail, this.opts.model),
+          })
         }
         const last = this.turns[this.turns.length - 1]
         if (last && last.role === 'assistant') {
@@ -680,6 +730,20 @@ export class AgentSession {
     }
     this.permissions.clear()
     this.queue.close()
+    /*
+     * Closing the input queue ends the iterator the SDK is reading, which is not
+     * the same as stopping the CLI: the SDK owns the child process and only
+     * `Query.close()` kills it. Dropping the reference instead leaks one `claude`
+     * per disposed session - seven of them, alive fourteen to seventeen hours, is
+     * what that looked like in practice. Each one also holds an AI Gateway proxy
+     * lease when the session was a gateway one. `warm.ts` has always closed its
+     * throwaway query in a `finally`; this path never did.
+     */
+    try {
+      this.q?.close()
+    } catch {
+      // Already gone, or never started.
+    }
     this.q = null
   }
 }
